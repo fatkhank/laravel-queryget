@@ -1,0 +1,43 @@
+{
+    "name": "hamba/querytools",
+    "description": "Helper for query eloquent model from request",
+    "authors": [
+        {
+            "name": "fatkhank",
+            "email": "fatkhan.khoirurridlo@gmail.com"
+        }
+    ],
+    "version": "0.1.0",
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "require": {
+        "php": ">=7.0.0",
+        "illuminate/support": "5.0.*|5.1.*|5.2.*|5.3.*|5.4.*|5.5.*"
+    },
+    "autoload": {
+        "classmap": [
+            "src"
+        ],
+        "psr-4": {
+            "Hamba\\QueryTools\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Hamba\\QueryTools\\QueryToolsServiceProvider"
+            ],
+            "aliases": {
+                "QT": "Hamba\\QueryTools\\QT",
+                "Filterable": "Hamba\\QueryTools\\Filterable",
+                "Selectable": "Hamba\\QueryTools\\Selectable",
+                "Sortable": "Hamba\\QueryTools\\Sortable"
+            }
+        }
+    }
+}
