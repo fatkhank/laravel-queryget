@@ -7,7 +7,6 @@
             "email": "fatkhan.khoirurridlo@gmail.com"
         }
     ],
-    "version": "0.1.0",
     "minimum-stability": "stable",
     "prefer-stable": true,
     "require": {
