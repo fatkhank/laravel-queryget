@@ -1,6 +1,6 @@
 <?php
 
-namespace Hamba\QueryTools;
+namespace Hamba\QueryGet;
 
 trait Sortable
 {

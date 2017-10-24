@@ -1,10 +1,10 @@
 <?php
 
-namespace Hamba\QueryTools;
+namespace Hamba\QueryGet;
 
 use Illuminate\Support\ServiceProvider;
 
-class QueryToolsServiceProvider extends ServiceProvider
+class QueryGetServiceProvider extends ServiceProvider
 {
     /**
      * Indicates if loading of the provider is deferred.
