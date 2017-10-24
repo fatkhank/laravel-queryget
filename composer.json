@@ -1,5 +1,5 @@
 {
-    "name": "hamba/querytools",
+    "name": "hamba/queryget",
     "description": "Helper for query eloquent model from request",
     "authors": [
         {
@@ -18,7 +18,7 @@
             "src"
         ],
         "psr-4": {
-            "Hamba\\QueryTools\\": "src/"
+            "Hamba\\QueryGet\\": "src/"
         }
     },
     "autoload-dev": {
@@ -29,13 +29,13 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Hamba\\QueryTools\\QueryToolsServiceProvider"
+                "Hamba\\QueryGet\\QueryGetServiceProvider"
             ],
             "aliases": {
-                "QT": "Hamba\\QueryTools\\QT",
-                "Filterable": "Hamba\\QueryTools\\Filterable",
-                "Selectable": "Hamba\\QueryTools\\Selectable",
-                "Sortable": "Hamba\\QueryTools\\Sortable"
+                "QG": "Hamba\\QueryGet\\QG",
+                "Filterable": "Hamba\\QueryGet\\Filterable",
+                "Selectable": "Hamba\\QueryGet\\Selectable",
+                "Sortable": "Hamba\\QueryGet\\Sortable"
             }
         }
     }

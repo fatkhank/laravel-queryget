@@ -1,6 +1,6 @@
 <?php
 
-namespace Hamba\QueryTools;
+namespace Hamba\QueryGet;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;

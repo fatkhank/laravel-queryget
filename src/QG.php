@@ -1,8 +1,8 @@
 <?php
 
-namespace Hamba\QueryTools;
+namespace Hamba\QueryGet;
 
-class QT{
+class QG{
     protected $model;
     public $query;
 

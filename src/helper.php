@@ -1,5 +1,5 @@
 <?php
-if (!function_exists('qt')) {
+if (!function_exists('qg')) {
     /**
      * Create new query tool
      *
@@ -7,8 +7,8 @@ if (!function_exists('qt')) {
      * @param  \Illuminate\Database\Eloquent\Builder $query
      * @return array
      */
-    function qt($model, $query = null)
+    function qg($model, $query = null)
     {
-        return new QT($model, $query);
+        return new QG($model, $query);
     }
 }
