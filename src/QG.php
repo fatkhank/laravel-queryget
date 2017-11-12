@@ -163,6 +163,19 @@ class QG{
         //for chaining
         return $this;
     }
+	
+	private $default_sort;
+	
+	/**
+     * Set default sort
+     *
+     * @param array $opt accept:only, except
+     * @return void
+     */
+	public function defaultSort($sorts){
+		$this->default_sort = $sorts;
+		return $this;//for chaining
+	}
 
     /**
      * Enable request to sort query
@@ -170,7 +183,7 @@ class QG{
      * @param array $opt accept:only, except
      * @return void
      */
-    public function sort($opt = [])
+    public function applySort($opt = [])
     {
         $classOrSorts = $this->model;
         $sortSpecs = $classOrSorts;
@@ -211,8 +224,13 @@ class QG{
         //get requested sort
         $requestSorts = request("sortby");
         if (!$requestSorts) {
-            //no sort
-            return $this;
+			//if no sort requested, sort use default sort
+			if($this->default_sort){
+				$requestSorts = $this->default_sort;
+			}else{
+				//no sort
+				return $this;
+			}
         }
         
         //wrap in array
@@ -273,7 +291,7 @@ class QG{
      * @return void
      */
     public function apply(){
-        return $this->filter()->select()->sort()->paging();
+        return $this->filter()->select()->applySort()->paging();
     }
 
     /**
