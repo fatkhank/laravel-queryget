@@ -103,29 +103,35 @@ class QG{
         $this->query->with($applicableWiths);
     }
 
-    /**
+     /**
      * Enable request to filter query.
      *
      * @param array $opt accept:only,except
      * @return void
      */
-    public function filter($opt = [])
+    public function applyFilter($opt = [])
     {
         //get filter from request
         $requestFilters = request()->all();
 
-        //set depth
-        $opt['depth'] = 3;
+        //create model instance
+        $className = $this->model;
+        $classObj = new $className;
+        
+        //applicable filters, mapped by key
+        $applicableFilters = [];
 
-        //get available filter specs
-        $classOrFilters = $this->model;
-        $filterSpecs;
-        if (is_array($classOrFilters)) {
-            $filterSpecs = collect($classOrFilters);
-        }else{
-            //if use class
-            $className = $classOrFilters;
-            $filterSpecs = collect($className::getFilters($opt));
+        //filter only requested level
+        foreach ($requestFilters as $key => $value) {
+            //parse disjunctions
+            $subKeys = explode('_or_', $key);
+            foreach ($subKeys as $subkey) {
+                $filter = $this->model::createFilter($subkey);
+                
+                if($filter){
+                    $applicableFilters[$subkey] = $filter;
+                }
+            }
         }
 
         //do filter
@@ -137,26 +143,28 @@ class QG{
 
             //parse disjunctions
             $subKeys = explode('_or_', $key);
-
-            //get matched filter
-            $matchFilters = $filterSpecs->only($subKeys)->values();
             
             //no filter for this one, ignore
-            if (count($matchFilters) == 0) {
-                continue;
-            }
-            if (count($matchFilters) > 1) {
+            if (count($subKeys) > 1) {
                 //has disjunction
-                $this->query->where(function ($query) use ($matchFilters, $value) {
-                    foreach ($matchFilters as $filter) {
-                        $query->orWhere(function ($query) use ($filter, $value) {
-                            $filter($query, $value);
-                        });
+                $this->query->where(function ($query) use ($subKeys, $value, $applicableFilters) {
+                    foreach ($subKeys as $subkey) {
+                        $filter = array_get($applicableFilters,$key);
+                        if($filter){
+                            //apply filter if exists
+                            $query->orWhere(function ($query) use ($filter, $value) {
+                                $filter($query, $value);
+                            });
+                        }
                     }
                 });
             } else {
                 //no disjunction
-                $matchFilters[0]($this->query, $value);
+                $filter = array_get($applicableFilters,$key);
+                if($filter){
+                    //apply filter if exist
+                    $filter($this->query, $value);
+                }
             }
         }
 
@@ -291,7 +299,10 @@ class QG{
      * @return void
      */
     public function apply(){
-        return $this->filter()->select()->applySort()->paging();
+        return $this->applyFilter()
+            ->select()
+            ->applySort()
+            ->paging();
     }
 
     /**
