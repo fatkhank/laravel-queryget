@@ -149,7 +149,7 @@ class QG{
                 //has disjunction
                 $this->query->where(function ($query) use ($subKeys, $value, $applicableFilters) {
                     foreach ($subKeys as $subkey) {
-                        $filter = array_get($applicableFilters,$key);
+                        $filter = array_get($applicableFilters,$subkey);
                         if($filter){
                             //apply filter if exists
                             $query->orWhere(function ($query) use ($filter, $value) {

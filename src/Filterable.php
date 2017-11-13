@@ -35,7 +35,24 @@ trait Filterable
             if (is_numeric($key)) {
                 //there is no setting, just key
                 $key = $spec;
-                $spec = null;
+                $spec = [
+                    'plain',
+                    $key
+                ];
+            }else if(is_string($spec)){
+                $specParamPos = strpos($spec, ':');
+                if(!$specParamPos){
+                    //append column name/relationname
+                    $spec = [
+                        $spec, //mode
+                        $key //prop/relation name
+                    ];
+                }else{
+                    $spec = [
+                        substr($spec, 0, $specParamPos), //mode
+                        substr($spec, $specParamPos + 1) //prop name
+                    ];
+                }
             }
 
             $normalizedFilterSpecs[$key] = $spec;
@@ -64,14 +81,8 @@ trait Filterable
 
         //parse spec
         $keySpec = $filterSpecs[$selfkey];
-        $specParamPos = strpos($keySpec, ':');
-        $mode = substr($keySpec, 0, $specParamPos);
-
-        //find property name used
-        $propName = $selfkey;
-        if($specParamPos > 0){
-            $propName = substr($keySpec, $specParamPos + 1);
-        }
+        $mode = $keySpec[0];
+        $propName = $keySpec[1];
 
         //parse
         switch ($mode) {
@@ -99,7 +110,7 @@ trait Filterable
                 }
 
                 //try find custom filter
-                return self::createCustomFilter($key);
+                return self::createCustomFilter($classObj, $key);
         }
     }
 
