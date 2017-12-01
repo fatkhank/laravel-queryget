@@ -5,6 +5,7 @@ namespace Hamba\QueryGet;
 class QG{
     protected $model;
     public $query;
+    private static $wrappers = [];
 
     public function __construct($modelOrQuery, $query = null){
         if($modelOrQuery instanceof \Illuminate\Database\Eloquent\Builder){
@@ -311,7 +312,7 @@ class QG{
      * @param string $wrap wrap mode
      * @return mixed
      */
-    public function get($wrap = 'default')
+    public function get($wrap = 'default', $wrapperParam = null)
     {
         //paging param
         $skip = intval(max(request("skip", 0), 0));
@@ -333,15 +334,34 @@ class QG{
             //no wrap
             return $data;
         }else if($wrap === 'default'){
-            //no wrap
+            //wrap default
             return response()->json([
                 'total' => $total,
                 'data_count' => count($data),
                 'data' => $data,
             ]);
         }else{
+            $meta = [
+                'total' => $total,
+                'skip' => $skip,
+                'count' => $count
+            ];
+
+            if(is_callable($wrap)){
+                //if wrap function provided
+                return response()->json($wrap($data, $meta, $wrapperParam));
+            }else if(array_key_exists($wrap, self::$wrappers)){
+                //find in wrapper collections
+                return self::$wrappers[$wrap]($data, $meta, $wrapperParam);
+            }
+
+            //
             throw new \Exception('Wrap not supported');
         }
+    }
+
+    public static function addWrapper($name, $callback){
+        self::$wrappers[$name] = $callback;
     }
 
     /**
