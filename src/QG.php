@@ -279,11 +279,11 @@ class QG{
     }
 
     /**
-     * Apply paging to query
+     * Apply paginate to query
      *
      * @return void
      */
-    public function paging()
+    public function paginate()
     {
         $skip = intval(max(request("skip", 0), 0));
         $count = request("count", 10);
@@ -295,15 +295,14 @@ class QG{
     }
 
     /**
-     * Apply all commands
+     * Apply filters, select and sort
      *
      * @return void
      */
     public function apply(){
         return $this->applyFilter()
             ->select()
-            ->applySort()
-            ->paging();
+            ->applySort();
     }
 
     /**
@@ -314,7 +313,7 @@ class QG{
      */
     public function get($wrap = 'default', $wrapperParam = null)
     {
-        //paging param
+        //paginate param
         $skip = intval(max(request("skip", 0), 0));
         $count = request("count", 10);
 
@@ -323,6 +322,8 @@ class QG{
 
         //query results
         $data = [];
+
+        $this->paginate();
 
         //run query only if necessary
         if ($count > 0) {
