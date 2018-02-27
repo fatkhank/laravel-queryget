@@ -20,9 +20,11 @@ class User extends Model{
         return $this->belongsToMany(Role::class, 'role_users');
     }
 
-    public $selectable = ['name',=>'username', 'email', 'roles'];
-    public $filterable = ['name', 'email'];
-    public $sortable = ['email'];
+    public $queryable = [
+        'email' => 'string',//enable attribute email to be queried
+        'name' => 'string:username',//enable attribute with alias
+        'roles' => 'relation'//enable relation 'roles'
+    ];
 }
 ```
 ```php
@@ -31,7 +33,7 @@ class Role extends Model
     protected $fillable = [
         'name', 'permissions',
     ];
-    public $selectable = ['name', 'permissions'];
+    public $queryable = ['name', 'permissions'];
 }
 ```
 
@@ -51,7 +53,7 @@ and this route:
 Route::get('users', 'UserController@index');
 ```
 
-## With QueryGet you can do these:
+## With QueryGet you can do these requests:
 ### Select attribute or relation:
 * /users?props[]=name
 ```json

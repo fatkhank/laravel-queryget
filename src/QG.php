@@ -127,8 +127,7 @@ class QG{
             //parse disjunctions
             $subKeys = explode('_or_', $key);
             foreach ($subKeys as $subkey) {
-                $filter = $this->model::createFilter($subkey);
-                
+                $filter = $className::createFilter($subkey);
                 if($filter){
                     $applicableFilters[$subkey] = $filter;
                 }
@@ -195,39 +194,50 @@ class QG{
     public function applySort($opt = [])
     {
         $classOrSorts = $this->model;
-        $sortSpecs = $classOrSorts;
-        if (!is_array($sortSpecs)) {
+        $finalSpecs = $classOrSorts;
+        if (!is_array($finalSpecs)) {
             //it is class
             $className = $classOrSorts;
             $classObj = new $className;
 
-            //check if sortable
-            if (!property_exists($classObj, 'sortable')) {
-                throw new \Exception($className.' is not sortable');
+            //get from queryables
+            $queryableSpecs = [];
+            if(method_exists($className, 'getNormalizedQueryables')){
+                $queryableSpecs = $className::getNormalizedQueryables(function($type, $realName, $queriability){
+                    if(
+                        str_contains($queriability, '|sort|') ||
+                        str_contains($queriability, '|all|')
+                    ){
+                        return $realName;
+                    }
+    
+                    return false;
+                });
             }
+            
+            //get other sortable
+            $sortableSpecs = $classObj->sortable;
 
-            $sortSpecs = $classObj->sortable;
-
-            //validate sorts
-            if(!is_array($sortSpecs)){
-                throw new \Exception('Mallformed sortable for '.$className);
-            }
+            //merge specifications
+            $finalSpecs = collect($queryableSpecs)->merge($sortableSpecs);
         }
 
         //make specs uniform
-        $sortSpecs = collect($sortSpecs)->mapWithKeys(function ($sort, $key) {
-            if (is_numeric($key)) {
-                return [$sort=>$sort];
-            } else {
-                return [$key=>$sort];
+        $finalSpecs = collect($finalSpecs)
+            ->mapWithKeys(function ($sort, $key) {
+                if (is_numeric($key)) {
+                    return [$sort=>$sort];
+                } else {
+                    return [$key=>$sort];
+                }
             }
-        });
+        );
 
         //filter specs from option
         if (array_has($opt, 'only')) {
-            $sortSpecs = $sortSpecs->only($opt['only']);
+            $finalSpecs = $finalSpecs->only($opt['only']);
         } elseif (array_has($opt, 'except')) {
-            $sortSpecs = $sortSpecs->except($opt['except']);
+            $finalSpecs = $finalSpecs->except($opt['except']);
         }
 
         //get requested sort
@@ -259,9 +269,9 @@ class QG{
             }
 
             //do short
-            if (array_has($sortSpecs, $requestSort)) {
+            if (array_has($finalSpecs, $requestSort)) {
                 //sort available
-                $sort = array_get($sortSpecs, $requestSort);
+                $sort = array_get($finalSpecs, $requestSort);
                 $overrideFunc = 'sortBy'.studly_case($sort);
                 
                 //check if has override sort function                

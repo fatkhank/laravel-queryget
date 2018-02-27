@@ -14,51 +14,57 @@ trait Filterable
      * Get normalized filter specs
      */
     private static function getNormalizedFilterSpecs(){
-        $normalizedFilterSpecs = [];
         $classObj = new static;
         $className = get_class($classObj);
-        
-        //get original specs
-        if (!property_exists($className, 'filterable')) {
-            throw new \Exception($className.' is not filterable');
-        }
-        $specs = $classObj->filterable;
 
-        //validate original specs
-        if(!is_array($specs)){
-            throw new \Exception('Mallformed filterable for '.$className);
-        }
-
-        //begin normalize
-        $normalizedFilterSpecs = [];
-        foreach ($specs as $key => $spec) {
-            if (is_numeric($key)) {
-                //there is no setting, just key
-                $key = $spec;
-                $spec = [
-                    'plain',
-                    $key
-                ];
-            }else if(is_string($spec)){
-                $specParamPos = strpos($spec, ':');
-                if(!$specParamPos){
-                    //append column name/relationname
-                    $spec = [
-                        $spec, //mode
-                        $key //prop/relation name
-                    ];
-                }else{
-                    $spec = [
-                        substr($spec, 0, $specParamPos), //mode
-                        substr($spec, $specParamPos + 1) //prop name
-                    ];
+        //get from queryables
+        $queryableSpecs = [];
+        if(method_exists($className, 'getNormalizedQueryables')){
+            $queryableSpecs = $className::getNormalizedQueryables(function($type, $realName, $queriability){
+                if(
+                    str_contains($queriability, '|filter|') ||
+                    str_contains($queriability, '|all|')
+                ){
+                    return [$type, $realName];
                 }
-            }
 
-            $normalizedFilterSpecs[$key] = $spec;
+                return false;
+            });
         }
+        
+        //get from filterable
+        $filterableSpecs = $classObj->filterable;
 
-        return $normalizedFilterSpecs;
+        return collect($queryableSpecs)
+            ->merge($filterableSpecs)
+            ->mapWithKeys(function ($spec, $key) {
+                //make specifications uniform
+                if (is_numeric($key)) {
+                    //there is no setting, just key
+                    $key = $spec;
+                    $spec = [
+                        'plain',
+                        $key
+                    ];
+                }else if(is_string($spec)){
+                    $modeDelimPosition = strpos($spec, ':');
+                    if(!$modeDelimPosition){
+                        //append column name/relationname
+                        $spec = [
+                            $spec, //mode
+                            $key //prop/relation name
+                        ];
+                    }else{
+                        $spec = [
+                            substr($spec, 0, $modeDelimPosition), //mode
+                            substr($spec, $modeDelimPosition + 1) //prop name
+                        ];
+                    }
+                }
+
+                return [$key => $spec];
+            })
+            ->toArray();
     }
 
     /**
@@ -74,6 +80,7 @@ trait Filterable
 
         //find match spec
         $filterSpecs = self::getNormalizedFilterSpecs();
+
         if(!array_key_exists($selfkey, $filterSpecs)){
             //no filter
             return null;
@@ -103,7 +110,7 @@ trait Filterable
                 $classObj = new static;
 
                 //find filter create function
-                $filterCreatorName = 'createFilter'.studly_case($key);
+                $filterCreatorName = 'createFilter'.studly_case($mode);
                 if(method_exists($classObj, $filterCreatorName)){
                     //filter func is exists
                     return $classObj->$filterCreatorName($key);

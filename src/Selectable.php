@@ -16,32 +16,42 @@ trait Selectable
         $classObj = new static;
         $className = get_class($classObj);
 
-        //check if class is selectable
-        if (!property_exists($className, 'selectable')) {
-            throw new \Exception($className.' is not selectable');
+        //get from queryables
+        $queryableSpecs = [];
+        if(method_exists($className, 'getNormalizedQueryables')){
+            $queryableSpecs = $className::getNormalizedQueryables(function($type, $realName, $queriability){
+                if(
+                    str_contains($queriability, '|select|') ||
+                    str_contains($queriability, '|all|')
+                ){
+                    return $realName;
+                }
+
+                return false;
+            });
         }
-
-        $selectSpecs = $classObj->selectable;
-
-        //validate selectables
-        if (!is_array($selectSpecs)) {
-            throw new \Exception('Mallformed selectable for '.$className);
-        }
-
-        //make spesifications uniform
-        $selectSpecs = collect($selectSpecs)->mapWithKeys(function ($select, $key) {
-            if (is_numeric($key)) {
-                return [$select=>$select];
-            } else {
-                return [$key=>$select];
+        
+        //get from selectable
+        $selectableSpecs = $classObj->selectable;
+        
+        $finalSpecs = 
+            //make specifications uniform
+            collect($queryableSpecs)
+            ->merge($selectableSpecs)
+            ->mapWithKeys(function ($select, $key) {
+                if (is_numeric($key)) {
+                    return [$select=>$select];
+                } else {
+                    return [$key=>$select];
+                }
             }
-        });
-
+        );
+        
         //filter specs from option
         if (array_has($opt, 'only')) {
-            $selectSpecs = $selectSpecs->only($opt['only']);
+            $finalSpecs = $finalSpecs->only($opt['only']);
         } elseif (array_has($opt, 'except')) {
-            $selectSpecs = $selectSpecs->except($opt['except']);
+            $finalSpecs = $finalSpecs->except($opt['except']);
         }
         
         $finalSelects = ['id'];
@@ -54,7 +64,7 @@ trait Selectable
         $groups = [];
         if ($selectAll) {
             //add all available properties
-            foreach ($selectSpecs as $key => $select) {
+            foreach ($finalSpecs as $key => $select) {
                 //check if relation
                 if (isset($classObj) && (method_exists($classObj, $select))){
                     
@@ -75,13 +85,13 @@ trait Selectable
             $key = str_before($selectString, '.');
             $afterKey = substr($selectString, strlen($key)+1);
             
-            if (!array_has($selectSpecs, $key)) {
+            if (!array_has($finalSpecs, $key)) {
                 //if property not selectable -> skip
                 continue;
             }
 
             //it is model property
-            $mappedName = $selectSpecs[$key];
+            $mappedName = $finalSpecs[$key];
             
             //check if relation
             if (isset($classObj)) {
@@ -119,7 +129,7 @@ trait Selectable
 
         //process groups/relations
         foreach ($groups as $key => $groupSelects) {
-            $relationName = $selectSpecs[$key];
+            $relationName = $finalSpecs[$key];
             
             //find in relation definition
             $relationClass = null;
