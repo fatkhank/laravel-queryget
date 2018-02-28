@@ -1,8 +1,15 @@
 <?php
 
-namespace Hamba\QueryTools\Filters;
+namespace Hamba\QueryGet\Filters;
 
 trait StringFilter{
+    protected static function createFilterText($key){
+        return self::createFilterString($key);
+    }
+
+    /**
+     * Filter case insensitive string&text
+     */
     protected static function createFilterString($key)
     {
         return function ($query, $value) use ($key) {

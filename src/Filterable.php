@@ -4,7 +4,7 @@ namespace Hamba\QueryGet;
 
 trait Filterable
 {
-    use Filters\TextFilter;
+    use Filters\StringFilter;
     use Filters\NumberFilter;
     use Filters\LogicalFilter;
     use Filters\DateTimeFilter;
