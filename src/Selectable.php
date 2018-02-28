@@ -19,10 +19,10 @@ trait Selectable
         //get from queryables
         $queryableSpecs = [];
         if(method_exists($className, 'getNormalizedQueryables')){
-            $queryableSpecs = $className::getNormalizedQueryables(function($type, $realName, $queriability){
+            $queryableSpecs = $className::getNormalizedQueryables(function($type, $realName, $queryability){
                 if(
-                    str_contains($queriability, '|select|') ||
-                    str_contains($queriability, '|all|')
+                    str_contains($queryability, '|select|') ||
+                    str_contains($queryability, '|all|')
                 ){
                     return $realName;
                 }
@@ -46,7 +46,7 @@ trait Selectable
                 }
             }
         );
-        
+
         //filter specs from option
         if (array_has($opt, 'only')) {
             $finalSpecs = $finalSpecs->only($opt['only']);
@@ -80,7 +80,7 @@ trait Selectable
             return $val != '*';
         });
 
-        //ensure array
+        
         foreach ($requestSelects as $selectString) {
             $key = str_before($selectString, '.');
             $afterKey = substr($selectString, strlen($key)+1);
@@ -108,6 +108,14 @@ trait Selectable
                         $groups[$key][] = $afterKey;
                     }
                     continue;
+                }else{
+                    //check if custom select function specified
+                    $customSelectFunc = 'select'.studly_case($mappedName);
+                    if(method_exists($classObj, $customSelectFunc)){
+                        //apply custom select
+                        $finalSelects[] = $classObj->$customSelectFunc();
+                        continue;
+                    }
                 }
             }
 

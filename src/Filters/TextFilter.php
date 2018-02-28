@@ -3,15 +3,10 @@
 namespace Hamba\QueryGet\Filters;
 
 trait TextFilter{
-    protected static function createFilterText($key){
-        return self::createFilterString($key);
-    }
-
-    /**
+	/**
      * Filter case insensitive string&text
      */
-    protected static function createFilterString($key)
-    {
+    protected static function createFilterText($key){
         return function ($query, $value) use ($key) {
             //check if array
             if (empty($value)) {

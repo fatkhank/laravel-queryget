@@ -20,10 +20,10 @@ trait Filterable
         //get from queryables
         $queryableSpecs = [];
         if(method_exists($className, 'getNormalizedQueryables')){
-            $queryableSpecs = $className::getNormalizedQueryables(function($type, $realName, $queriability){
+            $queryableSpecs = $className::getNormalizedQueryables(function($type, $realName, $queryability){
                 if(
-                    str_contains($queriability, '|filter|') ||
-                    str_contains($queriability, '|all|')
+                    str_contains($queryability, '|filter|') ||
+                    str_contains($queryability, '|all|')
                 ){
                     return [$type, $realName];
                 }
@@ -43,7 +43,7 @@ trait Filterable
                     //there is no setting, just key
                     $key = $spec;
                     $spec = [
-                        'plain',
+                        null,
                         $key
                     ];
                 }else if(is_string($spec)){
@@ -98,14 +98,12 @@ trait Filterable
                 return function ($query, $value) use ($propName) {
                     $query->whereIn($propName, $value);
                 };
-            case 'plain':
-            case null:
-                //filter raw
-                return self::createFilterPlain($propName);
             case 'relation':
             case 'rel':
                 //filter relation
                 return self::createFilterRelation($propName, $childkey);
+            case 'plain':
+                return self::createFilterPlain($propName);
             default:
                 $classObj = new static;
 
@@ -113,11 +111,17 @@ trait Filterable
                 $filterCreatorName = 'createFilter'.studly_case($mode);
                 if(method_exists($classObj, $filterCreatorName)){
                     //filter func is exists
-                    return $classObj->$filterCreatorName($key);
+                    return $classObj->$filterCreatorName($propName);
                 }
 
                 //try find custom filter
-                return self::createCustomFilter($classObj, $key);
+                $customFilter = self::createCustomFilter($classObj, $key);
+                if($customFilter){
+                    return $customFilter;
+                }
+
+                //use raw filter as default
+                return self::createFilterPlain($propName);
         }
     }
 
@@ -172,7 +176,9 @@ trait Filterable
         $filterFunc = 'filter'.studly_case($key);
         if(method_exists($classObj, $filterFunc)){
             //filter func is exists
-            return $classObj->$filterFunc;
+            return function($query, $value) use ($classObj, $filterFunc){
+                $classObj->$filterFunc($query, $value);
+            };
         }
         return null;
     }

@@ -15,8 +15,13 @@ use \Hamba\QueryGet\Selectable;
 public $selectable = [
     'email',//select attribute
     'name' => 'username',//select attribute with alias
-    'roles'//select relation
+    'roles', //select relation
+    'big_name' //custom select
 ];
+
+public function selectBigName(){
+    return \DB::raw("UPPER(name) as big_name");
+}
 ```
 ## Enable model to be filtered
 Add this to eloquent model:
@@ -30,10 +35,35 @@ use \Hamba\QueryGet\Filterable;
  * @var array
  */
 public $filterable = [
-    'email',//filterr attribute
-    'roles'//filter relation
+    //{requestable_key} => {type}:{real_key}
+    'email' => 'string',//filter attribute with builtin type string
+    'roles', //filter relation
+    'is_anonym', //custom filter (filter function specified later)
+    'name_length' => 'length:name', //filter attribute with custom type
+    'email_length' => 'length:email' //filter attribute with custom type
 ];
+
+public function filterIsAnonym($query, $value){
+    if($value === true){
+        $query->whereNull('name');
+    }else if($value === false){
+        $query->whereNotNull('name');
+    }
+}
+
+//
+public function createFilterLength($key){
+    return function($query, $value) use ($key){
+        return $query->where(\DB::raw('CHAR_LENGTH('.$key.')'), '<', $value);
+    };
+}
 ```
+
+### Built in filters
+1. bool/boolean
+1. date,datetime,time
+1. number
+1. string
 
 ## Enable model to be sorted
 Add this to eloquent model:

@@ -44,7 +44,12 @@ class QG{
 
         //get filter from request
         $requestSelects = request('props', array_get($opt, 'default'));
-        if (!$requestSelects) {
+        if($requestSelects){
+            if(is_string($requestSelects)){
+                //if props is concatenated string, parse it
+                $requestSelects = explode(',', $requestSelects);
+            }
+        }else{
             //if no requested selects, default to select all without relation
             $requestSelects = ['*'];
         }
@@ -203,10 +208,10 @@ class QG{
             //get from queryables
             $queryableSpecs = [];
             if(method_exists($className, 'getNormalizedQueryables')){
-                $queryableSpecs = $className::getNormalizedQueryables(function($type, $realName, $queriability){
+                $queryableSpecs = $className::getNormalizedQueryables(function($type, $realName, $queryability){
                     if(
-                        str_contains($queriability, '|sort|') ||
-                        str_contains($queriability, '|all|')
+                        str_contains($queryability, '|sort|') ||
+                        str_contains($queryability, '|all|')
                     ){
                         return $realName;
                     }
@@ -239,10 +244,17 @@ class QG{
         } elseif (array_has($opt, 'except')) {
             $finalSpecs = $finalSpecs->except($opt['except']);
         }
+        //unwrap
+        $finalSpecs = $finalSpecs->toArray();
 
         //get requested sort
-        $requestSorts = request("sortby");
-        if (!$requestSorts) {
+        $requestSorts = request("sortby", request("sorts"));
+        if($requestSorts){
+            if(is_string($requestSorts)){
+                //split if sort is concatenated attributes
+                $requestSorts = explode(',', $requestSorts);
+            }
+        }else{
 			//if no sort requested, sort use default sort
 			if($this->default_sort){
 				$requestSorts = $this->default_sort;
@@ -251,7 +263,7 @@ class QG{
 				return $this;
 			}
         }
-        
+
         //wrap in array
         if (!is_array($requestSorts)) {
             $requestSorts = [$requestSorts];
@@ -273,11 +285,12 @@ class QG{
                 //sort available
                 $sort = array_get($finalSpecs, $requestSort);
                 $overrideFunc = 'sortBy'.studly_case($sort);
-                
+
                 //check if has override sort function                
                 if(isset($classObj) && method_exists($classObj, $overrideFunc)){
                     $classObj->$overrideFunc($this->query, $dir);
                 }else{
+
                     //sort by attribute name
                     $this->query->orderBy($sort, $dir);
                 }
