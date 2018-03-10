@@ -3,10 +3,12 @@
 namespace Hamba\QueryGet;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasOneOrMany;
 use Illuminate\Database\Eloquent\Relations\MorphOneOrMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 trait Selectable
 {
@@ -44,8 +46,8 @@ trait Selectable
                 } else {
                     return [$key=>$select];
                 }
-            }
-        );
+            })
+            ->toArray();
 
         //filter specs from option
         if (array_has($opt, 'only')) {
@@ -158,18 +160,31 @@ trait Selectable
                     //belongsTo need foreign
                     $foreignKey = $relation->getForeignKey();
                     $finalSelects[] = $foreignKey;
-                } elseif ($relation instanceof MorphOneOrMany) {
-                    if (is_array($groupSelects)) {
-                        $groupSelects[] = 'id';
-                        $groupSelects[] = $relation->getForeignKeyName();
-                        $groupSelects[] = $relation->getMorphType();
+                    
+                    if ($relation instanceof MorphTo) {
+                        $finalSelects[] = $relation->getMorphType();
                     }
                 } elseif ($relation instanceof HasOneOrMany) {
                     if (is_array($groupSelects)) {
                         $groupSelects[] = $relation->getForeignKeyName();
+                        
+                        if ($relation instanceof MorphOneOrMany) {
+                            $groupSelects[] = $relation->getMorphType();
+                        }
                     } else {
                         //its select all
                     }
+                } elseif ($relation instanceof BelongsToMany) {
+                    Notimplemented();
+                    // if (is_array($groupSelects)) {
+                    //     $groupSelects[] = $relation->getQualifiedForeignPivotKeyName();
+                        
+                    //     if ($relation instanceof MorphOneOrMany) {
+                    //         $groupSelects[] = $relation->getMorphType();
+                    //     }
+                    // } else {
+                    //     //its select all
+                    // }
                 }
             }
 
