@@ -32,7 +32,7 @@ class QG{
      * @param array $opt accept:only,except
      * @return void
      */
-    public function select($opt = null)
+    public function select($selections = null, $opt = null)
     {
         //reset option
         if (!$opt) {
@@ -42,16 +42,18 @@ class QG{
         //set maximum recursive depth
         $opt['depth'] = 1;
 
-        //get filter from request
-        $requestSelects = request('props', array_get($opt, 'default'));
-        if($requestSelects){
-            if(is_string($requestSelects)){
+        //if select not specified, select from request
+        if(!$selections){
+            $selections = request('props');
+        }
+        if($selections){
+            if(is_string($selections)){
                 //if props is concatenated string, parse it
-                $requestSelects = explode(',', $requestSelects);
+                $selections = explode(',', $selections);
             }
         }else{
             //if no requested selects, default to select all without relation
-            $requestSelects = ['*'];
+            $selections = ['*'];
         }
 
         //get specification
@@ -66,21 +68,21 @@ class QG{
                 throw new \Exception($className.' is not selectable');
             }
 
-            $final = $className::getSelects($requestSelects, $opt);
+            $final = $className::getSelects($selections, $opt);
         }
 
         //process property
-        $this->applySelects($final['selects'], $final['withs']);
+        $this->applySelects($this->query, $final['selects'], $final['withs']);
 
         //for chaining
         return $this;
     }
     
-    private function applySelects($selects, $withs, $depth = 5)
+    private function applySelects($query, $selects, $withs, $depth = 5)
     {
         //apply select
         if ($selects !== null) {
-            $this->query->select($selects);
+            $query->select($selects);
         }
 
         //skip with if depth zero
@@ -101,12 +103,12 @@ class QG{
             $withSelects = array_get($prop, 'selects', []);
             $withWiths = array_get($prop, 'withs', []);
             $applicableWiths[$withName] = function ($query) use ($withSelects, $withWiths, $depth) {
-                return $this->applySelects($withSelects, $withWiths, $depth - 1);
+                return $this->applySelects($query, $withSelects, $withWiths, $depth - 1);
             };
         }
         
         //apply withs
-        $this->query->with($applicableWiths);
+        $query->with($applicableWiths);
     }
 
      /**
@@ -395,6 +397,15 @@ class QG{
      */
     public function fof(){
         return $this->query->firstOrFail();
+    }
+
+    /**
+     * Proxy to call query->first()
+     *
+     * @return void
+     */
+    public function one(){
+        return $this->query->first();
     }
 
     /**

@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 trait Selectable
 {
-    public static function getSelects($requestSelects, $opt)
+    public static function getSelects($selections, $opt)
     {
         //get specification
         $classObj = new static;
@@ -46,8 +46,7 @@ trait Selectable
                 } else {
                     return [$key=>$select];
                 }
-            })
-            ->toArray();
+            });
 
         //filter specs from option
         if (array_has($opt, 'only')) {
@@ -55,12 +54,13 @@ trait Selectable
         } elseif (array_has($opt, 'except')) {
             $finalSpecs = $finalSpecs->except($opt['except']);
         }
-        
-        $finalSelects = ['id'];
-        $withs = [];
 
-        $requestSelects = array_wrap($requestSelects);
-        $selectAll = (in_array('*', $requestSelects));
+        $finalSpecs = $finalSpecs->toArray();
+        $finalSelects = [];
+        $withs = [];
+        
+        $selections = array_wrap($selections);
+        $selectAll = (in_array('*', $selections));
         
         //groupped properties
         $groups = [];
@@ -69,7 +69,7 @@ trait Selectable
             foreach ($finalSpecs as $key => $select) {
                 //check if relation
                 if (isset($classObj) && (method_exists($classObj, $select))){
-                    
+
                 } else {
                     //it is properti
                     $finalSelects[$key] = $select;
@@ -78,12 +78,11 @@ trait Selectable
         }
 
         //clean request
-        $requestSelects = array_filter(array_unique($requestSelects), function ($val) {
+        $selections = array_filter(array_unique($selections), function ($val) {
             return $val != '*';
         });
 
-        
-        foreach ($requestSelects as $selectString) {
+        foreach ($selections as $selectString) {
             $key = str_before($selectString, '.');
             $afterKey = substr($selectString, strlen($key)+1);
             
@@ -109,6 +108,7 @@ trait Selectable
                         //further select specified
                         $groups[$key][] = $afterKey;
                     }
+
                     continue;
                 }else{
                     //check if custom select function specified
