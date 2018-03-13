@@ -56,6 +56,23 @@ class QG{
             $selections = ['*'];
         }
 
+        //reformat options so can be parsed in relation selections
+        if(array_key_exists('only', $opt)){
+            $unflattedOnly = [];
+            $flatOnly = array_sort($opt['only']);
+            foreach ($flatOnly as $value) {
+                data_set($unflattedOnly, $value, false);
+            }
+            $opt['only'] = $unflattedOnly;
+        }else if(array_key_exists('except', $opt)){
+            $unflattedexcept = [];
+            $flatExcept = array_sort($opt['except']);
+            foreach ($flatExcept as $value) {
+                data_set($unflattedexcept, $value, false);
+            }
+            $opt['except'] = $unflattedexcept;
+        }
+
         //get specification
         $classOrSelects = $this->model;
         $final = $classOrSelects;

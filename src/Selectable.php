@@ -36,10 +36,11 @@ trait Selectable
         //get from selectable
         $selectableSpecs = $classObj->selectable;
         
+        
         $finalSpecs = 
-            //make specifications uniform
             collect($queryableSpecs)
             ->merge($selectableSpecs)
+            //make specifications uniform
             ->mapWithKeys(function ($select, $key) {
                 if (is_numeric($key)) {
                     return [$select=>$select];
@@ -49,15 +50,15 @@ trait Selectable
             });
 
         //filter specs from option
-        if (array_has($opt, 'only')) {
-            $finalSpecs = $finalSpecs->only($opt['only']);
-        } elseif (array_has($opt, 'except')) {
-            $finalSpecs = $finalSpecs->except($opt['except']);
+        if (array_get($opt, 'only', false)) {
+            $finalSpecs = $finalSpecs->only(array_keys($opt['only']));
+        } elseif (array_get($opt, 'except',  false)) {
+            $finalSpecs = $finalSpecs->except(array_keys($opt['except']));
         }
 
         $finalSpecs = $finalSpecs->toArray();
-        $finalSelects = [];
-        $withs = [];
+        $applicableSelects = [];
+        $applicableWiths = [];
         
         $selections = array_wrap($selections);
         $selectAll = (in_array('*', $selections));
@@ -72,7 +73,7 @@ trait Selectable
 
                 } else {
                     //it is properti
-                    $finalSelects[$key] = $select;
+                    $applicableSelects[$key] = $select;
                 }
             }
         }
@@ -115,14 +116,14 @@ trait Selectable
                     $customSelectFunc = 'select'.studly_case($mappedName);
                     if(method_exists($classObj, $customSelectFunc)){
                         //apply custom select
-                        $finalSelects[] = $classObj->$customSelectFunc();
+                        $applicableSelects[] = $classObj->$customSelectFunc();
                         continue;
                     }
                 }
             }
 
             //if not relation, add as renamed attribute
-            $finalSelects[] = $mappedName.' as '.$key;
+            $applicableSelects[] = $mappedName.' as '.$key;
         }
 
         //reduce depth
@@ -159,10 +160,10 @@ trait Selectable
                 if ($relation instanceof BelongsTo) {
                     //belongsTo need foreign
                     $foreignKey = $relation->getForeignKey();
-                    $finalSelects[] = $foreignKey;
+                    $applicableSelects[] = $foreignKey;
                     
                     if ($relation instanceof MorphTo) {
-                        $finalSelects[] = $relation->getMorphType();
+                        $applicableSelects[] = $relation->getMorphType();
                     }
                 } elseif ($relation instanceof HasOneOrMany) {
                     if (is_array($groupSelects)) {
@@ -192,20 +193,28 @@ trait Selectable
             if (!method_exists($className, 'getSelects')) {
                 throw new \Exception($className.' is not selectable');
             }
+
+            //get option for relation
+            $relationOpt = ['depth' => $opt['depth']--];
+            if(array_get($opt, 'only', false)){
+                $relationOpt['only'] = $opt['only'][$key];
+            }else if(array_get($opt, 'except', false)){
+                $relationOpt['except'] = $opt['except'][$key];
+            }
             
             //process recursive select for relation
-            $select = $relationClass::getSelects($groupSelects, $opt);
+            $select = $relationClass::getSelects($groupSelects, $relationOpt);
             //add relation name
             $select['name'] = $relationName;
             //push
-            $withs[$key] = $select;
+            $applicableWiths[$key] = $select;
         }
 
         result:
         //wrap result
         return [
-            'selects' => $finalSelects,
-            'withs' => $withs
+            'selects' => $applicableSelects,
+            'withs' => $applicableWiths
         ];
     }
 }
