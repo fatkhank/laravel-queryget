@@ -164,6 +164,8 @@ trait Selectable
                     
                     if ($relation instanceof MorphTo) {
                         $applicableSelects[] = $relation->getMorphType();
+                    }else{
+                        $groupSelects[] = $relation->getOwnerKey();
                     }
                 } elseif ($relation instanceof HasOneOrMany) {
                     if (is_array($groupSelects)) {

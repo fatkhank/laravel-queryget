@@ -70,7 +70,7 @@ trait Filterable
     /**
      * Create filter by key
      */
-    public static function createFilter($key){
+    public static function createFilter($key, $modelInstance){
         //find key used in this model (remove relation keys)
         $selfkey = strstr($key, '$', true);
         if(!$selfkey){
@@ -89,7 +89,8 @@ trait Filterable
         //parse spec
         $keySpec = $filterSpecs[$selfkey];
         $mode = $keySpec[0];
-        $propName = $keySpec[1];
+        $tblName = $modelInstance->getTable();
+        $propName = $tblName.'.'.$keySpec[1];
 
         //parse
         switch ($mode) {

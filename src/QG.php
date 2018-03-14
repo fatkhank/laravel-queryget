@@ -1,11 +1,20 @@
 <?php
 
 namespace Hamba\QueryGet;
+use DB;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasOneOrMany;
+use Illuminate\Database\Eloquent\Relations\MorphOneOrMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class QG{
     protected $model;
     public $query;
     private static $wrappers = [];
+    private static $instanceCache = [];
 
     public function __construct($modelOrQuery, $query = null){
         if($modelOrQuery instanceof \Illuminate\Database\Eloquent\Builder){
@@ -26,8 +35,15 @@ class QG{
         }
     }
 
+    public static function getInstance($className){
+        if(array_key_exists($className, self::$instanceCache)){
+            return self::$instanceCache[$className];
+        }
+        return (self::$instanceCache[$className] = new $className);
+    }
+
     /**
-     * Enable request to select query.
+     * Perform selection to query.
      *
      * @param array $opt accept:only,except
      * @return void
@@ -46,6 +62,7 @@ class QG{
         if(!$selections){
             $selections = request('props');
         }
+
         if($selections){
             if(is_string($selections)){
                 //if props is concatenated string, parse it
@@ -56,17 +73,17 @@ class QG{
             $selections = ['*'];
         }
 
-        //reformat options so can be parsed in relation selections
+        //make only & except option to nested array (instead of flat array with dot notation)
         if(array_key_exists('only', $opt)){
-            $unflattedOnly = [];
             $flatOnly = array_sort($opt['only']);
+            $unflattedOnly = [];
             foreach ($flatOnly as $value) {
                 data_set($unflattedOnly, $value, false);
             }
             $opt['only'] = $unflattedOnly;
         }else if(array_key_exists('except', $opt)){
-            $unflattedexcept = [];
             $flatExcept = array_sort($opt['except']);
+            $unflattedexcept = [];
             foreach ($flatExcept as $value) {
                 data_set($unflattedexcept, $value, false);
             }
@@ -74,28 +91,30 @@ class QG{
         }
 
         //get specification
-        $classOrSelects = $this->model;
-        $final = $classOrSelects;
-        if (!is_array($classOrSelects)) {
-            //its class,
-            $className = $classOrSelects;
-            
-            //check if class is selectable
-            if (!method_exists($className, 'getSelects')) {
-                throw new \Exception($className.' is not selectable');
-            }
-
-            $final = $className::getSelects($selections, $opt);
+        $className = $this->model;
+        //check if class is selectable
+        if (!method_exists($className, 'getSelects')) {
+            throw new \Exception($className.' is not selectable');
         }
 
-        //process property
-        $this->applySelects($this->query, $final['selects'], $final['withs']);
-
+        //parse selection to be applicable for selects() and with()
+        $parsedSelect = $className::getSelects($selections, $opt);
+        //process selection
+        $this->recursiveSelect($this->query, $parsedSelect['selects'], $parsedSelect['withs']);
         //for chaining
         return $this;
     }
     
-    private function applySelects($query, $selects, $withs, $depth = 5)
+    /**
+     * Apply select and lazy load to query
+     *
+     * @param [type] $query
+     * @param [type] $selects
+     * @param [type] $withs
+     * @param integer $depth
+     * @return void
+     */
+    private function recursiveSelect($query, $selects, $withs, $depth = 5)
     {
         //apply select
         if ($selects !== null) {
@@ -112,15 +131,14 @@ class QG{
             return;
         }
 
-        //parse recursive with
+        //do recursive select
         $applicableWiths = [];
-        //parse recursive with
         foreach ($withs as $key => $prop) {
             $withName = array_get($prop, 'name', $key);
             $withSelects = array_get($prop, 'selects', []);
             $withWiths = array_get($prop, 'withs', []);
             $applicableWiths[$withName] = function ($query) use ($withSelects, $withWiths, $depth) {
-                return $this->applySelects($query, $withSelects, $withWiths, $depth - 1);
+                return $this->recursiveSelect($query, $withSelects, $withWiths, $depth - 1);
             };
         }
         
@@ -129,29 +147,29 @@ class QG{
     }
 
      /**
-     * Enable request to filter query.
+     * Perform filter to query.
      *
      * @param array $opt accept:only,except
      * @return void
      */
-    public function applyFilter($opt = [])
+    public function filter($filtersToApply = null, $opt = [])
     {
         //get filter from request
-        $requestFilters = request()->all();
+        if(!$filtersToApply){
+            $filtersToApply = request()->all();
+        }
 
         //create model instance
         $className = $this->model;
-        $classObj = new $className;
+        $classObj = self::getInstance($className);
         
-        //applicable filters, mapped by key
+        //list applicable filters according to specs
         $applicableFilters = [];
-
-        //filter only requested level
-        foreach ($requestFilters as $key => $value) {
+        foreach ($filtersToApply as $key => $value) {
             //parse disjunctions
             $subKeys = explode('_or_', $key);
             foreach ($subKeys as $subkey) {
-                $filter = $className::createFilter($subkey);
+                $filter = $className::createFilter($subkey, $classObj);
                 if($filter){
                     $applicableFilters[$subkey] = $filter;
                 }
@@ -159,7 +177,7 @@ class QG{
         }
 
         //do filter
-        foreach ($requestFilters as $key => $value) {
+        foreach ($filtersToApply as $key => $value) {
             //null means no filter, for filtering null, use magic string like :null
             if ($value === null) {
                 continue;
@@ -168,7 +186,6 @@ class QG{
             //parse disjunctions
             $subKeys = explode('_or_', $key);
             
-            //no filter for this one, ignore
             if (count($subKeys) > 1) {
                 //has disjunction
                 $this->query->where(function ($query) use ($subKeys, $value, $applicableFilters) {
@@ -199,7 +216,7 @@ class QG{
 	private $default_sort;
 	
 	/**
-     * Set default sort
+     * Set default sort if not specified in request
      *
      * @param array $opt accept:only, except
      * @return void
@@ -210,107 +227,71 @@ class QG{
 	}
 
     /**
-     * Enable request to sort query
-     *
+     * Perform sort to query
+     * @param array,string $sortsToApply list of sort to be applied
      * @param array $opt accept:only, except
      * @return void
      */
-    public function applySort($opt = [])
+    public function sort($sortsToApply = null, $opt = [])
     {
-        $classOrSorts = $this->model;
-        $finalSpecs = $classOrSorts;
-        if (!is_array($finalSpecs)) {
-            //it is class
-            $className = $classOrSorts;
-            $classObj = new $className;
+        //it is class
+        $className = $this->model;
+        $classObj = self::getInstance($className);
+        $specifications = self::getSortSpecs($className);
 
-            //get from queryables
-            $queryableSpecs = [];
-            if(method_exists($className, 'getNormalizedQueryables')){
-                $queryableSpecs = $className::getNormalizedQueryables(function($type, $realName, $queryability){
-                    if(
-                        str_contains($queryability, '|sort|') ||
-                        str_contains($queryability, '|all|')
-                    ){
-                        return $realName;
-                    }
-    
-                    return false;
-                });
-            }
-            
-            //get other sortable
-            $sortableSpecs = $classObj->sortable;
-
-            //merge specifications
-            $finalSpecs = collect($queryableSpecs)->merge($sortableSpecs);
+        //get requested sort if not specified
+        if(!$sortsToApply){
+            $sortsToApply = request("sortby", request("sorts"));
         }
-
-        //make specs uniform
-        $finalSpecs = collect($finalSpecs)
-            ->mapWithKeys(function ($sort, $key) {
-                if (is_numeric($key)) {
-                    return [$sort=>$sort];
-                } else {
-                    return [$key=>$sort];
-                }
-            }
-        );
-
-        //filter specs from option
-        if (array_has($opt, 'only')) {
-            $finalSpecs = $finalSpecs->only($opt['only']);
-        } elseif (array_has($opt, 'except')) {
-            $finalSpecs = $finalSpecs->except($opt['except']);
-        }
-        //unwrap
-        $finalSpecs = $finalSpecs->toArray();
-
-        //get requested sort
-        $requestSorts = request("sortby", request("sorts"));
-        if($requestSorts){
-            if(is_string($requestSorts)){
+        if($sortsToApply){
+            if(is_string($sortsToApply)){
                 //split if sort is concatenated attributes
-                $requestSorts = explode(',', $requestSorts);
+                $sortsToApply = explode(',', $sortsToApply);
             }
         }else{
-			//if no sort requested, sort use default sort
-			if($this->default_sort){
-				$requestSorts = $this->default_sort;
-			}else{
-				//no sort
-				return $this;
-			}
+            //if no sort requested, sort use default sort
+            if($this->default_sort){
+                $sortsToApply = $this->default_sort;
+            }else{
+                //no sort
+                return $this;
+            }
         }
 
         //wrap in array
-        if (!is_array($requestSorts)) {
-            $requestSorts = [$requestSorts];
-        }
-
-        foreach ($requestSorts as $requestSort) {
-            $dir="asc";
+        $sortsToApply = array_wrap($sortsToApply);
+        foreach ($sortsToApply as $appliedSort) {
+            $dir="asc";//default is ascending
             
             //decide direction
-            if (ends_with($requestSort, "_desc")) {
-                $requestSort = substr($requestSort, 0, count($requestSort) - 6);
+            if (ends_with($appliedSort, "_desc")) {
+                $appliedSort = substr($appliedSort, 0, count($appliedSort) - 6);
                 $dir = "desc";
-            } elseif (ends_with($requestSort, "_asc")) {
-                $requestSort = substr($requestSort, 0, count($requestSort) - 5);
+            } elseif (ends_with($appliedSort, "_asc")) {
+                $appliedSort = substr($appliedSort, 0, count($appliedSort) - 5);
             }
 
-            //do short
-            if (array_has($finalSpecs, $requestSort)) {
-                //sort available
-                $sort = array_get($finalSpecs, $requestSort);
-                $overrideFunc = 'sortBy'.studly_case($sort);
-
-                //check if has override sort function                
-                if(isset($classObj) && method_exists($classObj, $overrideFunc)){
-                    $classObj->$overrideFunc($this->query, $dir);
-                }else{
-
-                    //sort by attribute name
+            //check if there are required joins
+            if(!str_contains($appliedSort, '.')){
+                if (array_has($specifications, $appliedSort)) {
+                    //sort available
+                    $sort = array_get($specifications, $appliedSort);
+                    $overrideFunc = 'sortBy'.studly_case($sort);
+    
+                    //check if has override sort function                
+                    if(isset($classObj) && method_exists($classObj, $overrideFunc)){
+                        $classObj->$overrideFunc($this->query, $dir);
+                    }else{                        
+                        //sort by attribute name
+                        $this->query->orderBy($sort, $dir);
+                    }
+                }
+            }else{
+                $joins = str_before($appliedSort, '.');
+                $joinAlias = $this->leftJoin($joins);
+                if($joinAlias){
+                    $lastSortPart = substr($appliedSort, strlen($joins)+1);
+                    $sort = $joinAlias.'.'.$lastSortPart;
                     $this->query->orderBy($sort, $dir);
                 }
             }
@@ -318,6 +299,49 @@ class QG{
 
         //for chaining
         return $this;
+    }
+
+    public static function getSortSpecs($className, $opt = []){
+        //get from queryables
+        $queryableSpecs = [];
+        if(method_exists($className, 'getNormalizedQueryables')){
+            $queryableSpecs = $className::getNormalizedQueryables(function($type, $realName, $queryability){
+                if(
+                    str_contains($queryability, '|sort|') ||
+                    str_contains($queryability, '|all|')
+                ){
+                    return $realName;
+                }
+
+                return false;
+            });
+        }
+        
+        //get from sortables
+        $classObj = self::getInstance($className);
+        $sortableSpecs = $classObj->sortable;
+
+        //merge specifications
+        $finalSpecs = collect($queryableSpecs)->merge($sortableSpecs);
+
+        //make specs uniform
+        $finalSpecs = $finalSpecs->mapWithKeys(function ($sort, $key) {
+            if (is_numeric($key)) {
+                return [$sort=>$sort];
+            } else {
+                return [$key=>$sort];
+            }
+        });
+
+        //filter specs from option
+        if (array_has($opt, 'only')) {
+            $finalSpecs = $finalSpecs->only($opt['only']);
+        } elseif (array_has($opt, 'except')) {
+            $finalSpecs = $finalSpecs->except($opt['except']);
+        }
+
+        //unwrap
+        return $finalSpecs->toArray();
     }
 
     /**
@@ -342,9 +366,10 @@ class QG{
      * @return void
      */
     public function apply(){
-        return $this->applyFilter()
+        return $this
+            ->filter()
             ->select()
-            ->applySort();
+            ->sort();
     }
 
     /**
@@ -443,5 +468,72 @@ class QG{
      */
     public function idOrFail($id){
         return $this->query->findOrFail($id);
+    }
+
+    protected $joined = [];
+    public function leftJoin($join){
+        //prevent duplicate join
+        $cache = $this->joined;
+        if(array_key_exists($join, $cache)){
+            return $joined[$join]['alias'];
+        }
+
+        //save last join alias
+        $joinAlias = null;
+        $sourceModel = $this->model;
+        $splittedJoins = explode('.', $join);
+        foreach ($splittedJoins as $splittedJoin) {
+            $final = $this->singleLeftJoin($sourceModel, $splittedJoin, $joinAlias);
+            if(!$final){
+                //fail to join
+                return null;
+            }
+            $joinAlias = $final['alias'];
+            $sourceModel = $final['class'];
+        }
+
+        return $joinAlias;
+    }
+
+    private function singleLeftJoin($sourceModel, $join, $prefix){
+        $cache = $this->joined;
+
+        //prevent duplicate join
+        if(array_key_exists($join, $cache)){
+            return $joined[$join];
+        }
+
+        //get specification
+        $classObj = self::getInstance($sourceModel);
+        //$relationName = studly_case($join);
+        $relationName = $join;
+        $relation = $classObj->$relationName();
+
+        //relation not found
+        if(!$relation){
+            //todo find custom join method
+            return null;
+        }
+
+        if(!$prefix){
+            $prefix = $classObj->getTable();
+        }
+        
+        //parse relation
+        $relatedClass = $relation->getRelated();
+        $relatedTbl = $relatedClass->getTable();
+        $foreignKey = $relation->getForeignKey();
+        $ownedKey = $relation->getOwnerKey();
+
+        if ($relation instanceof BelongsTo) {
+            $joinAlias = $relationName.'_join';
+            //belongsTo need foreign
+            $this->query->leftJoin($relatedTbl.' as '.$joinAlias, $joinAlias.'.'.$ownedKey, '=', $prefix.'.'.$foreignKey);
+        }
+
+        return ($joined[$join] = [
+            'class' => $relatedClass,
+            'alias' => $joinAlias,
+        ]);
     }
 }
