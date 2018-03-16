@@ -11,7 +11,7 @@ trait Queryable
     /**
      * Get normalized queryables
      */
-    public static function getNormalizedQueryables($filter = null){
+    public static function collectNormalizedQueryables($selectedValue = null){
         $classObj = new static;
         $className = get_class($classObj);
 
@@ -22,52 +22,48 @@ trait Queryable
 
         // queryable format = 
         // [
-        //      key1 => 'type1:realKey1;queryability1',
-        //      key2 => 'type2:realKey2;queryability2'
+        //      aliasedKey1 => 'keyType1:unaliasedKey1',
+        //      aliasedKey2 => 'keyType2:unaliasedKey2'
         // ]
         // 
         $queryables = $classObj->queryable;
 
         //begin normalize each spec
-        $normalizedQueryables = [];
-        foreach ($queryables as $key => $qVal) {
-            //1. normalize value for key only
-            if (is_numeric($key)) {
-                $key = $qVal;
-                $qVal = 'null:'.$key.';all';
-            }
-
-            //2. split queryability and specification
-            $delim = strpos($qVal, ';');
-            if(!$delim){
-                //if queryability not specified, use 'all'
-                $spec = $qVal;
-                $queryability = '|all|';
-            }else{
-                $spec = substr($qVal, 0, $delim);
-                $queryability = '|'.substr($qVal, $delim+1).'|';
+        return collect($queryables)->mapWithKeys(function($qVal, $aliasedKey) use ($selectedValue){
+            //normalize value when unaliasedKey and type not specified
+            if (is_numeric($aliasedKey)) {
+                $aliasedKey = $qVal;
+                $qVal = 'null:'.$aliasedKey;//null is default type, assume unaliasedKey is same as aliasedKey
             }
             
-            //3. split specType and specName
-            $delim = strpos($spec, ':');
-            if(!$delim){
-                //if realKey not specified
-                $specType = $spec;
-                $specName = $key;
+            //parse value
+            if($selectedValue == 'plain'){
+                $value = $qVal;
             }else{
-                $specType = substr($spec, 0, $delim);
-                $specName = substr($spec, $delim+1);
-            }
+                //split keyType and unaliasedKey
+                $delim = strpos($qVal, ':');
+                if($delim){
+                    $keyType = substr($qVal, 0, $delim);
+                    $unaliasedKey = substr($qVal, $delim+1);
+                }else{
+                    $keyType = $qVal;
+                    //if unaliasedKey not specified, use aliasedKey
+                    $unaliasedKey = $aliasedKey;
+                }
 
-            //filter by queryability
-            if($filter){
-                $filterResult = $filter($specType, $specName, $queryability);
-                if($filterResult !== false){
-                    $normalizedQueryables[$key] = $filterResult;
+                if($selectedValue == 'key'){
+                    $value = $aliasedKey;
+                }elseif($selectedValue == 'type'){
+                    $value = $keyType;
+                }else{
+                    $value = [
+                        'key' => $unaliasedKey,
+                        'type' => $keyType
+                    ];
                 }
             }
-        }
 
-        return $normalizedQueryables;
+            return [$aliasedKey => $value];
+        });
     }
 }
