@@ -2,6 +2,8 @@
 
 Laravel query get is helper to perform query to eloquent model.
 
+### [Read full documentation](docs/doc.md)
+
 ## Installation
 ```
 composer require hamba/queryget
@@ -132,6 +134,3 @@ Route::get('users', 'UserController@index');
     ]
 }
 ```
-
-
-## [Read full documentation](docs/doc.md)
