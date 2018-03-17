@@ -17,6 +17,12 @@ trait HandleFilter
         //get filter from request
         if(!$filtersToApply){
             $filtersToApply = request()->all();
+        }else{
+            //if filterToApply, assume usage as filter(key,value)
+            if(is_string($filtersToApply)){
+                $filtersToApply = [$filtersToApply => $opt];
+                $opt = [];
+            }
         }
 
         //create model instance
@@ -40,7 +46,7 @@ trait HandleFilter
 
         //do filter
         foreach ($filtersToApply as $key => $value) {
-            //null means no filter, for filtering null, use magic string like :null
+            //null means no filter, for filtering null, use magic string like null:
             if ($value === null) {
                 continue;
             }

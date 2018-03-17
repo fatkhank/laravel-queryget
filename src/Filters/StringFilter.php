@@ -21,20 +21,22 @@ trait StringFilter{
                 }
             } else {
                 //plain value
-                //make value case insensitive
                 $lowerValue = $value;
                 if (is_string($value)) {
                     $lowerValue = strtolower($value);
                 }
-                if ($value == ':null') {
+                if ($value == 'null:') {
                     $query->whereNull($key);
-                } elseif ($value == ':notnull') {
+                } elseif ($value == 'notnull:') {
                     $query->whereNotNull($key);
-                } elseif ($value == ':empty') {
+                } elseif ($value == 'empty:') {
                     $query->where($key, '');
                 } elseif (starts_with($lowerValue, 'not:')) {
-                    $lowerValue = substr($lowerValue, 4);
+                    $lowerValue = str_replace_start('not:', '', $lowerValue);
                     $query->whereRaw('LOWER('.$key.') NOT LIKE ?', [$lowerValue]);
+                } elseif (starts_with($lowerValue, 'like:')) {
+                    $lowerValue = str_replace_start('like:', '', $lowerValue);
+                    $query->whereRaw('LOWER('.$key.') LIKE ?', [$lowerValue]);
                 } else {
                     $query->whereRaw('LOWER('.$key.') LIKE ?', [$lowerValue]);
                 }

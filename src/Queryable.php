@@ -22,48 +22,49 @@ trait Queryable
 
         // queryable format = 
         // [
-        //      aliasedKey1 => 'keyType1:unaliasedKey1',
-        //      aliasedKey2 => 'keyType2:unaliasedKey2'
+        //      alias1 => 'type1:key1',
+        //      alias2 => 'type2:key2'
         // ]
         // 
         $queryables = $classObj->queryable;
 
         //begin normalize each spec
-        return collect($queryables)->mapWithKeys(function($qVal, $aliasedKey) use ($selectedValue){
-            //normalize value when unaliasedKey and type not specified
-            if (is_numeric($aliasedKey)) {
-                $aliasedKey = $qVal;
-                $qVal = 'null:'.$aliasedKey;//null is default type, assume unaliasedKey is same as aliasedKey
+        return collect($queryables)
+            ->mapWithKeys(function($qVal, $alias) use ($selectedValue){
+            //normalize value when key and type not specified
+            if (is_numeric($alias)) {
+                $alias = $qVal;
+                $qVal = 'null:'.$alias;//null is default type, assume key is same as alias
             }
             
             //parse value
             if($selectedValue == 'plain'){
                 $value = $qVal;
             }else{
-                //split keyType and unaliasedKey
+                //split type and key
                 $delim = strpos($qVal, ':');
                 if($delim){
-                    $keyType = substr($qVal, 0, $delim);
-                    $unaliasedKey = substr($qVal, $delim+1);
+                    $type = substr($qVal, 0, $delim);
+                    $key = substr($qVal, $delim+1);
                 }else{
-                    $keyType = $qVal;
-                    //if unaliasedKey not specified, use aliasedKey
-                    $unaliasedKey = $aliasedKey;
+                    $type = $qVal;
+                    //if key not specified, use aliasedKey
+                    $key = $alias;
                 }
 
                 if($selectedValue == 'key'){
-                    $value = $aliasedKey;
+                    $value = $alias;
                 }elseif($selectedValue == 'type'){
-                    $value = $keyType;
+                    $value = $type;
                 }else{
                     $value = [
-                        'key' => $unaliasedKey,
-                        'type' => $keyType
+                        'key' => $key,
+                        'type' => $type
                     ];
                 }
             }
 
-            return [$aliasedKey => $value];
+            return [$alias => $value];
         });
     }
 }

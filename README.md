@@ -1,6 +1,6 @@
 # Laravel Query Get
 
-Laravel query get enable request to perform query to eloquent model.
+Laravel query get is helper to perform query to eloquent model.
 
 ## Installation
 ```
@@ -123,7 +123,7 @@ Route::get('users', 'UserController@index');
 ```
 
 ### Do pagination
-* /users?props[]=name&skip=1&count=1
+* /users?props[]=name&page=1&pagesize=1
 ```json
 {
     "total":3,
@@ -134,4 +134,4 @@ Route::get('users', 'UserController@index');
 ```
 
 
-## [Read the documentation](docs/doc.md)
+## [Read full documentation](docs/doc.md)

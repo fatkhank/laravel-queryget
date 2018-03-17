@@ -10,10 +10,10 @@ trait LogicalFilter{
     {
         return function ($query, $value) use ($key) {
             switch($value){
-                case ':null':
+                case 'null:':
                     $query->whereNull($key);
                     break;
-                case ':notnull':
+                case 'notnull:':
                     $query->whereNotNull($key);
                     break;
                 case false:

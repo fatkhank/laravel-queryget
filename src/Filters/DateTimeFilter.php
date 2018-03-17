@@ -14,16 +14,24 @@ trait DateTimeFilter{
         return self::createFilterDateTime($key, '<=');
     }
 
+    protected static function createFilterDateBefore($key){
+        return self::createFilterDateTime($key, '<');
+    }
+
     protected static function createFilterDateMin($key){
         return self::createFilterDateTime($key, '>=');
+    }
+
+    protected static function createFilterDateAfter($key){
+        return self::createFilterDateTime($key, '>');
     }
 
     protected static function createFilterDateTime($key, $operator = '=')
     {
         return function ($query, $value) use ($key, $operator) {
-            if ($value == ':null') {
+            if ($value == 'null:') {
                 $query->whereNull($key);
-            } elseif ($value == ':notnull') {
+            } elseif ($value == 'notnull:') {
                 $query->whereNotNull($key);
             } elseif (!is_null($value)) {
                 $query->where($key, $operator, Carbon::parse($value));

@@ -35,11 +35,11 @@ trait Selectable
         $merged = $queryableCollection->merge($selectables);
             
         //make mergeds uniform
-        $normalized = $merged->mapWithKeys(function ($unaliased, $key) {
-            if (is_numeric($key)) {
-                return [$unaliased=>$unaliased];
+        $normalized = $merged->mapWithKeys(function ($key, $alias) {
+            if (is_numeric($alias)) {
+                return [$key=>$key];
             } else {
-                return [$key=>$unaliased];
+                return [$alias=>$key];
             }
         });
         

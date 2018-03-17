@@ -2,13 +2,13 @@
 
 namespace Hamba\QueryGet;
 use DB;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class QG{
     use Concerns\HandleSelection;
     use Concerns\HandleFilter;
     use Concerns\HandleSort;
+    use Concerns\HandleJoin;
+    use Concerns\HandlePagination;
 
     protected $model;
     public $query;
@@ -45,22 +45,6 @@ class QG{
     }
 
     /**
-     * Apply paginate to query
-     *
-     * @return void
-     */
-    public function paginate()
-    {
-        $skip = intval(max(request("skip", 0), 0));
-        $count = request("count", 10);
-
-        $this->query->skip($skip)->take($count);
-
-        //for chaining
-        return $this;
-    }
-
-    /**
      * Apply filters, select and sort
      *
      * @return void
@@ -79,18 +63,18 @@ class QG{
      * @return mixed
      */
     public function get($wrap = 'default', $wrapperParam = null)
-    {
-        //paginate param
-        $skip = intval(max(request("skip", 0), 0));
-        $count = request("count", 10);
-
+    {        
         //total results count
         $total = $this->query->count();
 
+        //paginate param
+        $count = $this->pageSize();
+        $page = $this->pageNumber();
+        $skip = $this->offset($page, $count);
+        $this->paginate();
+
         //query results
         $data = [];
-
-        $this->paginate();
 
         //run query only if necessary
         if ($count > 0) {
@@ -111,8 +95,9 @@ class QG{
         }else{
             $meta = [
                 'total' => $total,
+                'page' => $page,
                 'skip' => $skip,
-                'count' => $count
+                'size' => $count
             ];
 
             if(is_callable($wrap)){
@@ -166,104 +151,8 @@ class QG{
      * @param mixed $id
      * @return void
      */
-    public function idOrFail($id){
+    public function iof($id){
         return $this->query->findOrFail($id);
-    }
-
-    protected $joined = [];
-    
-    /**
-     * Join current query with required relations
-     *
-     * @param string $join relation name relative from current model, delimited by dot
-     * @return string alias of join
-     */
-    public function leftJoin($join){
-        $joinInfo = $this->leftJoinInfo($join);
-        return $joinInfo? $joinInfo['alias'] : null;
-    }
-
-    /**
-     * Join current query with required relations
-     *
-     * @param string $join relation name relative from current model, delimited by dot
-     * @return string model name of last relation joined
-     */
-    public function leftJoinModel($join){
-        $joinInfo = $this->leftJoinInfo($join);
-        return $joinInfo? $joinInfo['class'] : null;
-    }
-
-    /**
-     * Join current query with required relations
-     *
-     * @param string $join relation name relative from current model, delimited by dot
-     * @return array information of join result, containing ['alias' => 'alias of the join', 'class' => 'name of model of last join']
-     */
-    public function leftJoinInfo($join){
-        //prevent duplicate join
-        if(array_key_exists($join, $this->joined)){
-            return $this->joined[$join];
-        }
-
-        //save last join alias
-        $lastJoin = null;
-        $joinAlias = null;
-        $sourceModel = $this->model;
-        $splittedJoins = explode('.', $join);
-        foreach ($splittedJoins as $splittedJoin) {
-            $lastJoin = $this->doLeftJoin($sourceModel, $splittedJoin, $joinAlias);
-            if(!$lastJoin){
-                //fail to join
-                return null;
-            }
-            $joinAlias = $lastJoin['alias'];
-            $sourceModel = $lastJoin['class'];
-        }
-
-        return $lastJoin;
-    }
-
-    private function doLeftJoin($sourceModel, $join, $prefix){
-        //prevent duplicate join
-        if(array_key_exists($join, $this->joined)){
-            return $this->joined[$join];
-        }
-
-        //get specification
-        $classObj = self::getInstance($sourceModel);
-        //$relationName = studly_case($join);
-        $relationName = $join;
-        $relation = $classObj->$relationName();
-
-        //relation not found
-        if(!$relation){
-            //todo find custom join method
-            return null;
-        }
-
-        if($prefix){
-            $joinAlias = $prefix.'_'.$relationName.'_join';
-        }else{
-            $prefix = $classObj->getTable();
-            $joinAlias = $relationName.'_join';
-        }
-        
-        //parse relation
-        $relatedClass = $relation->getRelated();
-        $relatedTbl = $relatedClass->getTable();
-        $foreignKey = $relation->getForeignKey();
-        $ownedKey = $relation->getOwnerKey();
-
-        if ($relation instanceof BelongsTo) {
-            //belongsTo need foreign
-            $this->query->leftJoin($relatedTbl.' as '.$joinAlias, $joinAlias.'.'.$ownedKey, '=', $prefix.'.'.$foreignKey);
-        }
-
-        return ($this->joined[$join] = [
-            'class' => $relatedClass,
-            'alias' => $joinAlias,
-        ]);
     }
 
     /**

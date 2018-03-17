@@ -17,7 +17,31 @@ trait HandleSort
 	public function defaultSort($sorts){
 		$this->default_sort = $sorts;
 		return $this;//for chaining
-	}
+    }
+    
+    /**
+     * Sort only specific sortable
+     *
+     * @param array $only array of sortable alias included
+     * @return void
+     */
+    public function sortOnly($only){
+        return $this->sort(null, [
+            'only' => $only
+        ]);
+    }
+
+    /**
+     * Sort except specific sortable
+     *
+     * @param array $except array of sortable alias excluded
+     * @return void
+     */
+    public function sortExcept($except){
+        return $this->sort(null, [
+            'except' => $except
+        ]);
+    }
 
     /**
      * Perform sort to query
@@ -44,38 +68,38 @@ trait HandleSort
         if(!$sortsToApply){return $this;}
 
         $sortsToApply = QG::normalizeList($sortsToApply);
-        foreach ($sortsToApply as $aliasedSort) {
+        foreach ($sortsToApply as $alias) {
             //decide direction, default is ascending
             $dir="asc";
-            if (ends_with($aliasedSort, "_desc")) {
-                $aliasedSort = str_replace_last('_desc', '', $aliasedSort);
+            if (ends_with($alias, "_desc")) {
+                $alias = str_replace_last('_desc', '', $alias);
                 $dir = "desc";
-            } elseif (ends_with($aliasedSort, "_asc")) {
-                $aliasedSort = str_replace_last('_asc', '', $aliasedSort);
+            } elseif (ends_with($alias, "_asc")) {
+                $alias = str_replace_last('_asc', '', $alias);
             }
 
             //find mapping
-            $unaliasedSort = array_get($mapping, $aliasedSort);
-            if($unaliasedSort){
+            $sort = array_get($mapping, $alias);
+            if($sort){
                 //check if has override sort function
-                $overrideFunc = 'sortBy'.studly_case($unaliasedSort);
+                $overrideFunc = 'sortBy'.studly_case($sort);
                 if(isset($classObj) && method_exists($classObj, $overrideFunc)){
                     $classObj->$overrideFunc($this->query, $dir);
                 }else{                        
                     //sort by attribute name
-                    $this->query->orderBy($unaliasedSort, $dir);
+                    $this->query->orderBy($sort, $dir);
                 }
                 continue;
             }
 
             //check if sort by relations
-            if(str_contains($aliasedSort, '.')){
+            if(str_contains($alias, '.')){
                 //parse relations
-                $joins = substr($aliasedSort, 0, strripos($aliasedSort, '.'));
+                $joins = substr($alias, 0, strripos($alias, '.'));
                 if(!empty($joins)){
                     $joinAlias = $this->leftJoin($joins);
                     if($joinAlias){
-                        $lastSortPart = substr($aliasedSort, strlen($joins)+1);
+                        $lastSortPart = substr($alias, strlen($joins)+1);
                         $sort = $joinAlias.'.'.$lastSortPart;
                         $this->query->orderBy($sort, $dir);
                     }
@@ -102,11 +126,11 @@ trait HandleSort
         $merged = $queryableCollection->merge($sortables);
 
         //make specs uniform
-        $merged = $merged->mapWithKeys(function ($sort, $key) {
-            if (is_numeric($key)) {
+        $merged = $merged->mapWithKeys(function ($sort, $alias) {
+            if (is_numeric($alias)) {
                 return [$sort=>$sort];
             } else {
-                return [$key=>$sort];
+                return [$alias=>$sort];
             }
         });
 

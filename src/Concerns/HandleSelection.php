@@ -117,9 +117,9 @@ trait HandleSelection
         //if select all, select all from mapping that is not relation
         $isSelectAll = ($selectionTree == '*') || (array_key_exists('*', $selectionTree));
         if ($isSelectAll) {
-            foreach ($mapping as $unaliased => $alias) {
+            foreach ($mapping as $alias => $key) {
                 if (!method_exists($classObj, $alias)){
-                    $selectionTree[$unaliased] = true;
+                    $selectionTree[$alias] = true;
                 }
             }
             $selectionTree = array_except($selectionTree, ['*']);
@@ -127,31 +127,28 @@ trait HandleSelection
 
         $selectedAttributes = [];
         $selectedRelations = [];
-        foreach ($selectionTree as $aliasedKey => $children) {
-            //map to unaliased key
-            $unaliasedKey = array_get($mapping, $aliasedKey);
-            if(!$unaliasedKey){
-                //specification not found, skip
-                continue;
-            }
+        foreach ($selectionTree as $alias => $children) {
+            $key = array_get($mapping, $alias);
+            //skip if not selectable
+            if(!$key){continue;}
 
             //check weather key is relation or not
-            if(!method_exists($classObj, $unaliasedKey)){
+            if(!method_exists($classObj, $key)){
                 //check if custom select function specified
-                $customSelectFunc = 'select'.studly_case($unaliasedKey);
+                $customSelectFunc = 'select'.studly_case($key);
                 if(method_exists($classObj, $customSelectFunc)){
                     //apply custom select
-                    $selectedAttributes[] = $classObj->$customSelectFunc($tblName, $aliasedKey, $this);
+                    $selectedAttributes[] = $classObj->$customSelectFunc($tblName, $alias, $this);
                 }else{
                     //custom select function not found, assume attribute
-                    $selectedAttributes[] = $unaliasedKey.' as '.$aliasedKey;
+                    $selectedAttributes[] = $key.' as '.$alias;
                 }
             }else{//it is relation
                 if($children == null){
                     //if relation attribute not specified, use select all
-                    array_set($selectedRelations, $unaliasedKey, '*');
+                    array_set($selectedRelations, $key, '*');
                 }else{
-                    array_set($selectedRelations, $unaliasedKey, $children);
+                    array_set($selectedRelations, $key, $children);
                 }
             }
         }
@@ -163,8 +160,8 @@ trait HandleSelection
         $withFunctions = [];
         foreach ($selectedRelations as $relationName => $relationSelections) {
             //normalize select all
-            if (($relationSelections == '*') || (array_search('*', $relationSelections) !== false)) {
-                $relationSelections = ['*'];
+            if (($relationSelections == '*') || (array_key_exists('*', $relationSelections))) {
+                $relationSelections = ['*' => null];
             }
             
             //get relation context
@@ -175,15 +172,16 @@ trait HandleSelection
             $additionalRelationAttrs = [];
             if ($relation instanceof BelongsTo) {
                 //belongsTo need foreign
-                $selectedAttributes[] = $relation->getForeignKey();
+                $selectedAttributes[] = $relation->getQualifiedForeignKey();
                 
                 if ($relation instanceof MorphTo) {
                     $selectedAttributes[] = $relation->getMorphType();
                 }else{
-                    $additionalRelationAttrs[$relation->getOwnerKey()] = null;
+                    $additionalRelationAttrs[$relation->getQualifiedOwnerKeyName()] = null;
                 }
             } elseif ($relation instanceof HasOneOrMany) {
-                $additionalRelationAttrs[$relation->getForeignKeyName()] = null;
+                $selectedAttributes[] = $relation->getQualifiedParentKeyName();
+                $additionalRelationAttrs[$relation->getQualifiedForeignKeyName()] = null;
                 
                 if ($relation instanceof MorphOneOrMany) {
                     $additionalRelationAttrs[$relation->getMorphType()] = null;
