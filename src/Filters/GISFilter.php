@@ -3,8 +3,9 @@
 namespace Hamba\QueryGet\Filters;
 
 trait GISFilter{    
-    protected static function createFilterPoint($key)
+    protected static function createFilterPoint($key, $table)
     {
+        $qualifiedColumnName = $table.'.'.$key;
         return function ($query, $value) use ($key) {
             if($value === 'null:'){
                 $query->whereNull($key);

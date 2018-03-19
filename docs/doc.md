@@ -283,19 +283,22 @@ public $filterable = [
 ];
 ```
 
-## Performing filter
+## Filtering attribute
+### Filter Single Attribute
 ```php
-// filter single attribute
 // format: $qg->filter($filterKey, $filterValue);
+// filter whose name starts with 'Yus'
 $qg->filter('name', 'Yus%')->select('id,name')->one();
 // result:
 // [
 //      'id' => 2,
 //      'name'=> 'Yusuf'
 // ]
-
-// filter multiple attributes
+```
+### Filter Multiple Attributes
+```php
 // format: $qg->filter($filterKeyValuePairs, $opt);
+// filter whose name is lisa and ordered_id greater than 2
 $qg->filter([
     'name'=>'Lisa', 
     'ordered_id' => 'gt:2'
@@ -305,14 +308,38 @@ $qg->filter([
 //     'id' => 3,
 //     'name' => 'Lisa'
 // ]
+```
 
-// filter relation
-$qg->filter('parent$parent$name', 'Ah%')->select('id,name')->one();
+## Filtering relation
+### Filter Relation Existence
+```php
+// 1.filter person with grandparent
+$qg->filter('parent$parent', true)->select('id,name')->one();
+// result:
+// [
+//     'id' => 3,
+//     'name' => 'Lisa'
+// ]
+
+// 2.filter person with no parent
+$qg->filter('parent', false)->select('id,name')->one();
 // result:
 // [
 //     'id' => 1,
 //     'name' => 'Ahmad'
 // ]
+```
+
+### Filter Relation Attribute
+```php
+// filter whose parent name starts with 'Ah'
+$qg->filter('parent$name', 'Ah%')->select('id,name')->one();
+// result:
+// [
+//     'id' => 3,
+//     'name' => 'Lisa'
+// ]
+
 ```
 
 ## Disjunction
@@ -400,13 +427,14 @@ public $filterable = [
  * 
  * @param string $key attribute name passed as parameter of length type
  */
-public function createFilterLength($key){
-    return function($query, $value) use ($key){
-        return $query->where(\DB::raw('CHAR_LENGTH('.$key.')'), '<', $value);
+public function createFilterLength($key, $table){
+    $qualifiedColumnName = $table.'.'.$key;
+    return function($query, $value) use ($qualifiedColumnName){
+        return $query->where(\DB::raw('CHAR_LENGTH('.$qualifiedColumnName.')'), '<', $value);
     };
 }
-
 ```
+> Dont forget to prepend column with table name to prevent naming conflict!
 
 ## Custom filter function
 Beside using custom filter type, you can make custom filter function. The difference is that custom filter type can be used many times while custom filter function can be used once. Add function with name`'filter'+studly_case($filterKey)` in the model.

@@ -3,38 +3,39 @@
 namespace Hamba\QueryGet\Filters;
 
 trait DateTimeFilter{
-    protected static function createFilterDate($key){
-        return self::createFilterDateTime($key, '=');
+    protected static function createFilterDate($key, $table){
+        return self::createFilterDateTime($key, $table, '=');
     }
-    protected static function createFilterTime($key){
-        return self::createFilterDateTime($key, '=');
-    }
-
-    protected static function createFilterDateMax($key){
-        return self::createFilterDateTime($key, '<=');
+    protected static function createFilterTime($key, $table){
+        return self::createFilterDateTime($key, $table, '=');
     }
 
-    protected static function createFilterDateBefore($key){
-        return self::createFilterDateTime($key, '<');
+    protected static function createFilterDateMax($key, $table){
+        return self::createFilterDateTime($key, $table, '<=');
     }
 
-    protected static function createFilterDateMin($key){
-        return self::createFilterDateTime($key, '>=');
+    protected static function createFilterDateBefore($key, $table){
+        return self::createFilterDateTime($key, $table, '<');
     }
 
-    protected static function createFilterDateAfter($key){
-        return self::createFilterDateTime($key, '>');
+    protected static function createFilterDateMin($key, $table){
+        return self::createFilterDateTime($key, $table, '>=');
     }
 
-    protected static function createFilterDateTime($key, $operator = '=')
+    protected static function createFilterDateAfter($key, $table){
+        return self::createFilterDateTime($key, $table, '>');
+    }
+
+    protected static function createFilterDateTime($key, $table, $operator = '=')
     {
-        return function ($query, $value) use ($key, $operator) {
+        $qualifiedColumnName = $table.'.'.$key;
+        return function ($query, $value) use ($qualifiedColumnName, $operator) {
             if ($value == 'null:') {
-                $query->whereNull($key);
+                $query->whereNull($qualifiedColumnName, $table);
             } elseif ($value == 'notnull:') {
-                $query->whereNotNull($key);
+                $query->whereNotNull($qualifiedColumnName, $table);
             } elseif (!is_null($value)) {
-                $query->where($key, $operator, Carbon::parse($value));
+                $query->where($qualifiedColumnName, $operator, Carbon::parse($value));
             }
         };
     }

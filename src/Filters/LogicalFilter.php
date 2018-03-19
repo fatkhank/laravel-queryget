@@ -3,32 +3,33 @@
 namespace Hamba\QueryGet\Filters;
 
 trait LogicalFilter{    
-    protected static function createFilterBool($key){
-        return self::createFilterFlag($key);
+    protected static function createFilterBool($key, $table){
+        return self::createFilterFlag($key, $table);
     }
-    protected static function createFilterFlag($key)
+    protected static function createFilterFlag($key, $table)
     {
-        return function ($query, $value) use ($key) {
+        $qualifiedColumnName = $table.'.'.$key;
+        return function ($query, $value) use ($qualifiedColumnName) {
             switch($value){
                 case 'null:':
-                    $query->whereNull($key);
+                    $query->whereNull($qualifiedColumnName);
                     break;
                 case 'notnull:':
-                    $query->whereNotNull($key);
+                    $query->whereNotNull($qualifiedColumnName);
                     break;
                 case false:
                 case 'false':
                 case 'no':
-                    $query->where($key, 'false');
+                    $query->where($qualifiedColumnName, 'false');
                     break;
                 case 1: 
                 case true:
                 case 'true':
                 case'yes':
-                    $query->where($key, '1');
+                    $query->where($qualifiedColumnName, '1');
                     break;
                 default:
-                    $query->where($key, 0);
+                    $query->where($qualifiedColumnName, 0);
                 
             }
         };

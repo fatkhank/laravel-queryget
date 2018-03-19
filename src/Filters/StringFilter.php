@@ -10,9 +10,10 @@ trait StringFilter{
     /**
      * Filter case insensitive string&text
      */
-    protected static function createFilterString($key)
+    protected static function createFilterString($key, $table)
     {
-        return function ($query, $value) use ($key) {
+        $qualifiedColumnName = $table.'.'.$key;
+        return function ($query, $value) use ($qualifiedColumnName) {
             //check if array
             if (empty($value)) {
                 //ignore filter
@@ -26,19 +27,19 @@ trait StringFilter{
                     $lowerValue = strtolower($value);
                 }
                 if ($value == 'null:') {
-                    $query->whereNull($key);
+                    $query->whereNull($qualifiedColumnName);
                 } elseif ($value == 'notnull:') {
-                    $query->whereNotNull($key);
+                    $query->whereNotNull($qualifiedColumnName);
                 } elseif ($value == 'empty:') {
-                    $query->where($key, '');
+                    $query->where($qualifiedColumnName, '');
                 } elseif (starts_with($lowerValue, 'not:')) {
-                    $lowerValue = str_replace_start('not:', '', $lowerValue);
-                    $query->whereRaw('LOWER('.$key.') NOT LIKE ?', [$lowerValue]);
+                    $lowerValue = str_replace_first('not:', '', $lowerValue);
+                    $query->whereRaw('LOWER('.$qualifiedColumnName.') NOT LIKE ?', [$lowerValue]);
                 } elseif (starts_with($lowerValue, 'like:')) {
-                    $lowerValue = str_replace_start('like:', '', $lowerValue);
-                    $query->whereRaw('LOWER('.$key.') LIKE ?', [$lowerValue]);
+                    $lowerValue = str_replace_first('like:', '', $lowerValue);
+                    $query->whereRaw('LOWER('.$qualifiedColumnName.') LIKE ?', [$lowerValue]);
                 } else {
-                    $query->whereRaw('LOWER('.$key.') LIKE ?', [$lowerValue]);
+                    $query->whereRaw('LOWER('.$qualifiedColumnName.') LIKE ?', [$lowerValue]);
                 }
             }
         };

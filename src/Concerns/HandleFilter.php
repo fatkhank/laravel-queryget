@@ -33,11 +33,11 @@ trait HandleFilter
         $applicableFilters = [];
         foreach ($filtersToApply as $key => $value) {
             //parse disjunctions
-            $subKeys = explode('_or_', $key);
-            foreach ($subKeys as $subkey) {
-                $filter = $className::createFilter($subkey, $classObj);
+            $filterStrings = explode('_or_', $key);
+            foreach ($filterStrings as $substring) {
+                $filter = self::createFilter($substring, $classObj);
                 if($filter){
-                    $applicableFilters[$subkey] = $filter;
+                    $applicableFilters[$substring] = $filter;
                 }
             }
         }
@@ -79,5 +79,165 @@ trait HandleFilter
 
         //for chaining
         return $this;
+    }
+
+    private static $filterMappingCache = [];
+
+    /**
+     * Get normalized filter specs
+     */
+    private static function getNormalizedFilterMapping($className){
+        //try use cache
+        $cache = array_get(self::$filterMappingCache, $className);
+        if($cache){return $cache;}
+
+        $classObj = QG::getInstance($className);
+
+        //get from queryables
+        $queryableCollection = [];
+        if(method_exists($className, 'collectNormalizedQueryables')){
+            $queryableCollection = $className::collectNormalizedQueryables('plain');
+        }
+        
+        //get from filterable
+        $filterableSpecs = $classObj->filterable;
+
+        //
+        $merged = $queryableCollection->merge($filterableSpecs);
+
+        $normalized = $merged->mapWithKeys(function ($spec, $aliasedKey) {
+            //make specifications uniform
+            if (is_numeric($aliasedKey)) {
+                //there is no setting, just key
+                $aliasedKey = $spec;
+                $spec = [
+                    null,
+                    $aliasedKey
+                ];
+            }else if(is_string($spec)){
+                $modeDelimPosition = strpos($spec, ':');
+                if(!$modeDelimPosition){
+                    //append column name/relationname
+                    $spec = [
+                        $spec, //mode
+                        $aliasedKey //prop/relation name
+                    ];
+                }else{
+                    $spec = [
+                        substr($spec, 0, $modeDelimPosition), //mode
+                        substr($spec, $modeDelimPosition + 1) //prop name
+                    ];
+                }
+            }
+
+            return [$aliasedKey => $spec];
+        })->toArray();
+
+        self::$filterMappingCache[$className] = $normalized;
+        return $normalized;
+    }
+
+    protected static $filterCache = [];
+
+    /**
+     * Create filter by filterstring
+     *
+     * @param string $filterString
+     * @param [type] $modelInstance
+     * @return void
+     */
+    public static function createFilter($filterString, $modelInstance){
+        $className = get_class($modelInstance);
+
+        //try use cache
+        $cacheKey = $className.'.'.$filterString;
+        $cache = array_get(self::$filterCache, $cacheKey);
+        if($cache){return $cache;}
+        
+        //find alias belongs to this model
+        $firstAlias = strstr($filterString, '$', true);//'$' is relation delimiter
+        if(!$firstAlias){
+            $firstAlias = $filterString;
+        }
+        
+        //find mapping, skip if not exists
+        $aliasMapping = self::getNormalizedFilterMapping($className);
+        $typeKeyPair = array_get($aliasMapping, $firstAlias);
+        if(!$typeKeyPair){return null;}
+        
+        //get type and key
+        $realKey = $typeKeyPair[1];
+        $type = $typeKeyPair[0];
+
+        //check if can be traited as relation filter
+        if (method_exists($className, $realKey)) {
+            $relationFilterString = substr($filterString, strlen($firstAlias) + 1);
+            $filter = self::createFilterRelation($modelInstance, $realKey, $relationFilterString);
+        }else{
+            //try find custom filter
+            $customFilter = self::createCustomFilter($modelInstance, $realKey);
+            if($customFilter){return $customFilter;}
+            
+            //parse more params to determine matching filter
+            $table = $modelInstance->getTable();
+            
+            //return filter with type
+            $filter = $className::createFilter($type, $realKey, $table);
+        }
+        
+        //put to cache
+        array_set(self::$filterCache, $cacheKey, $filter);
+        return $filter;
+    }
+
+    public static function createFilterRelation($classObj, $relationName, $filterString)
+    {
+        $className = get_class($classObj);
+
+        //check relation existence
+        if (!method_exists($className, $relationName)) {
+            throw new \Exception('Filter error. '.$className.' has no relation '.$relationName);
+        }
+
+        $relation = $classObj->$relationName();
+        $related = $relation->getRelated();
+        $relationClass = get_class($related);
+        
+        if(empty($filterString)){
+            //only filter relation existance
+            return function($query, $value) use ($relationName){
+                if(($value === true) || ($value === 'true')){
+                    $query->whereHas($relationName);
+                }else{
+                    $query->whereDoesntHave($relationName);
+                }
+            };
+        }else{
+            //recursive filter
+            $filter = QG::createFilter($filterString, $related);
+            if($filter){
+                return function($query, $value) use ($relationName, $filter){
+                    $query->whereHas($relationName, function ($query) use ($value, $filter) {
+                        $filter($query, $value);
+                    });
+                };
+            }
+
+        }
+        
+        //no filter
+        return null;
+    }
+
+    protected static function createCustomFilter($classObj, $key)
+    {
+        $filterFunc = 'filter'.studly_case($key);
+        if(method_exists($classObj, $filterFunc)){
+            //filter func is exists
+            return function($query, $value) use ($classObj, $filterFunc){
+                $classObj->$filterFunc($query, $value);
+            };
+        }
+        return null;
     }
 }

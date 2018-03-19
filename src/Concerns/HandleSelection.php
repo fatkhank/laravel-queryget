@@ -53,6 +53,7 @@ trait HandleSelection
     /**
      * Perform selection to query.
      *
+     * @param mixed $selections array of selection alias; or selection aliases separated with comma;
      * @param array $opt accept:only,except
      * @return void
      */
@@ -141,7 +142,8 @@ trait HandleSelection
                     $selectedAttributes[] = $classObj->$customSelectFunc($tblName, $alias, $this);
                 }else{
                     //custom select function not found, assume attribute
-                    $selectedAttributes[] = $key.' as '.$alias;
+                    $qualifiedKey = $tblName.'.'.$key;
+                    $selectedAttributes[] = $qualifiedKey.' as '.$alias;
                 }
             }else{//it is relation
                 if($children == null){
@@ -177,11 +179,11 @@ trait HandleSelection
                 if ($relation instanceof MorphTo) {
                     $selectedAttributes[] = $relation->getMorphType();
                 }else{
-                    $additionalRelationAttrs[$relation->getQualifiedOwnerKeyName()] = null;
+                    $additionalRelationAttrs[$relation->getOwnerKey()] = null;
                 }
             } elseif ($relation instanceof HasOneOrMany) {
                 $selectedAttributes[] = $relation->getQualifiedParentKeyName();
-                $additionalRelationAttrs[$relation->getQualifiedForeignKeyName()] = null;
+                $additionalRelationAttrs[$relation->getForeignKeyName()] = null;
                 
                 if ($relation instanceof MorphOneOrMany) {
                     $additionalRelationAttrs[$relation->getMorphType()] = null;
