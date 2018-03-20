@@ -146,7 +146,7 @@ class QG{
     }
 
     /**
-     * Proxy to call query->find()
+     * Proxy to call query->findOrFail()
      *
      * @param mixed $id
      * @return void

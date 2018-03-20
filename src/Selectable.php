@@ -23,7 +23,7 @@ trait Selectable
         $className = get_class($classObj);
 
         //get from queryables
-        $queryableCollection = [];
+        $queryableCollection = collect();
         if(method_exists($className, 'collectNormalizedQueryables')){
             $queryableCollection = $className::collectNormalizedQueryables('key');
         }

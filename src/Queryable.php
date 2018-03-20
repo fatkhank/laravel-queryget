@@ -17,7 +17,7 @@ trait Queryable
 
         //empty
         if (!property_exists($classObj, 'queryable')) {
-            return [];
+            return collect();
         }
 
         // queryable format = 
