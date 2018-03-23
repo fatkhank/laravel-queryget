@@ -7,6 +7,18 @@ use QG;
 trait HandleFilter
 {
     /**
+     * Perform filters from request. Default filter also will be applied unless overriden in request.
+     *
+     * @param array $defaults
+     * @param array $opt
+     * @return void
+     */
+    public function filterWithDefault($defaults, $opt = []){
+        $opt['default'] = array_merge($defaults, array_get($opt, 'default', []));
+        return $this->filter(null, $opt);
+    }
+
+    /**
      * Perform filter to query.
      *
      * @param array $opt accept:only,except
@@ -18,11 +30,16 @@ trait HandleFilter
         if(!$filtersToApply){
             $filtersToApply = request()->all();
         }else{
-            //if filterToApply, assume usage as filter(key,value)
+            //if opt is string, assume usage as filter(key,value)
             if(is_string($filtersToApply)){
                 $filtersToApply = [$filtersToApply => $opt];
                 $opt = [];
             }
+        }
+
+        $defaultFilters = array_get($opt, 'default');
+        if($defaultFilters){
+            $filtersToApply = array_merge($defaultFilters, $filtersToApply);
         }
 
         //create model instance
@@ -35,7 +52,7 @@ trait HandleFilter
             //parse disjunctions
             $filterStrings = explode('_or_', $key);
             foreach ($filterStrings as $substring) {
-                $filter = self::createFilter($substring, $classObj);
+                $filter = $this->createFilter($substring, $classObj);
                 if($filter){
                     $applicableFilters[$substring] = $filter;
                 }
@@ -146,7 +163,7 @@ trait HandleFilter
      * @param [type] $modelInstance
      * @return void
      */
-    public static function createFilter($filterString, $modelInstance){
+    public function createFilter($filterString, $modelInstance){
         $className = get_class($modelInstance);
 
         //try use cache
@@ -172,10 +189,10 @@ trait HandleFilter
         //check if can be traited as relation filter
         if (method_exists($className, $realKey)) {
             $relationFilterString = substr($filterString, strlen($firstAlias) + 1);
-            $filter = self::createFilterRelation($modelInstance, $realKey, $relationFilterString);
+            $filter = $this->createFilterRelation($modelInstance, $realKey, $relationFilterString);
         }else{
             //try find custom filter
-            $customFilter = self::createCustomFilter($modelInstance, $realKey);
+            $customFilter = $this->createCustomFilter($modelInstance, $realKey);
             if($customFilter){return $customFilter;}
             
             //parse more params to determine matching filter
@@ -190,7 +207,7 @@ trait HandleFilter
         return $filter;
     }
 
-    public static function createFilterRelation($classObj, $relationName, $filterString)
+    public function createFilterRelation($classObj, $relationName, $filterString)
     {
         $className = get_class($classObj);
 
@@ -214,7 +231,7 @@ trait HandleFilter
             };
         }else{
             //recursive filter
-            $filter = QG::createFilter($filterString, $related);
+            $filter = $this->createFilter($filterString, $related);
             if($filter){
                 return function($query, $value) use ($relationName, $filter){
                     $query->whereHas($relationName, function ($query) use ($value, $filter) {
@@ -229,13 +246,14 @@ trait HandleFilter
         return null;
     }
 
-    protected static function createCustomFilter($classObj, $key)
+    protected function createCustomFilter($classObj, $key)
     {
         $filterFunc = 'filter'.studly_case($key);
+        $qg = $this;
         if(method_exists($classObj, $filterFunc)){
             //filter func is exists
-            return function($query, $value) use ($classObj, $filterFunc){
-                $classObj->$filterFunc($query, $value);
+            return function($query, $value) use ($classObj, $filterFunc, $qg){
+                $classObj->$filterFunc($query, $value, $qg);
             };
         }
         return null;

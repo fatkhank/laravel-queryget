@@ -361,6 +361,22 @@ $qg->filter(null)->select('name')->one();
 //     'name'=>'Yusuf'
 // ]
 ```
+You can also specify filters to be applied, if not provided in request inputs by specify 'default' option in `filter()` or using `filterWithDefault()`.
+```php
+$qg->filterWithDefault(['name', 'Yus%'])->select('name')->one();
+//or
+$qg->filter(null, ['default'=>['name', 'Yus%']])->select('name')->one();
+// requesting to `{URL}
+// result:
+// [
+//     'name'=>'Yusuf'
+// ]
+// requesting to `{URL}?name=Lis%&id=
+// result:
+// [
+//     'name'=>'Lisa'
+// ]
+```
 
 ## Built in filter types
 Each types has rules on how the value will be treated. Some types have magic value. These are magic value common to all built in types.

@@ -53,7 +53,7 @@ trait Queryable
                 }
 
                 if($selectedValue == 'key'){
-                    $value = $alias;
+                    $value = $key;
                 }elseif($selectedValue == 'type'){
                     $value = $type;
                 }else{

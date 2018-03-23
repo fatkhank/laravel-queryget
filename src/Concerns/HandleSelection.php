@@ -103,7 +103,9 @@ trait HandleSelection
         return $this;
     }
 
-    private function recursiveSelects($query, $selectionTree, $opt){
+    public function recursiveSelects($query, $selectionTree, $opt){
+        if(array_get($opt, 'depth', 1) < 0){return;}
+
         //parse context
         $modelName = get_class($query->getModel());
         $classObj = self::getInstance($modelName);
@@ -139,7 +141,10 @@ trait HandleSelection
                 $customSelectFunc = 'select'.studly_case($key);
                 if(method_exists($classObj, $customSelectFunc)){
                     //apply custom select
-                    $selectedAttributes[] = $classObj->$customSelectFunc($tblName, $alias, $this);
+                    $customSelect = $classObj->$customSelectFunc($tblName, $alias, $this);
+                    if($customSelect){
+                        $selectedAttributes = array_merge($selectedAttributes, array_wrap($customSelect));
+                    }
                 }else{
                     //custom select function not found, assume attribute
                     $qualifiedKey = $tblName.'.'.$key;
@@ -208,8 +213,8 @@ trait HandleSelection
             }
             
             //generate function for lazy load query
-            $withFunctions[$relationName] = function($query) use ($qg, $relationClass, $relationSelections, $relationOpt){
-                $qg->recursiveSelects($query, $relationSelections, $relationOpt);
+            $withFunctions[$relationName] = function($withQuery) use ($qg, $relationClass, $relationSelections, $relationOpt){
+                $qg->recursiveSelects($withQuery, $relationSelections, $relationOpt);
             };
         }
 
