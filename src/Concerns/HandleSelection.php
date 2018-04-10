@@ -64,9 +64,6 @@ trait HandleSelection
             $opt = [];
         }
         
-        //set maximum recursive depth
-        $opt['depth'] = 1;
-
         //filter selections by option
         if(array_key_exists('only', $opt)){
             $opt['only'] = QG::inflate($opt['only']);
@@ -89,11 +86,20 @@ trait HandleSelection
             }
         }
 
-        if($selections){
-            $selections = QG::normalizeList($selections);
-        }else{
+        if(!$selections){
+            //nothing to select
             return $this;
         }
+
+        $selections = QG::normalizeList($selections);
+
+        //set maximum recursive depth
+        $maxDepth = 1;
+        foreach ($selections as $selection) {
+            $dotCount = substr_count($selection, '.');
+            $maxDepth = max($maxDepth, $dotCount + 1);
+        }
+        $opt['depth'] = $maxDepth;
 
         $selectionTree = QG::inflate(array_unique($selections));
 
@@ -201,7 +207,7 @@ trait HandleSelection
             $relationSelections = array_merge($relationSelections, $additionalRelationAttrs);
             
             //get option for relation
-            $relationOpt = ['depth' => $opt['depth']--];
+            $relationOpt = ['depth' => $opt['depth'] - 1];
             if(array_key_exists('only', $opt)){
                 $originalOnly = array_get($opt['only'], $relationName);
                 $mergedOnly = array_merge($originalOnly, $additionalRelationAttrs);

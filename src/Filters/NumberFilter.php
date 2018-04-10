@@ -2,7 +2,7 @@
 
 namespace Hamba\QueryGet\Filters;
 
-trait NumberFilter{    
+trait NumberFilter{
     protected static function createFilterNumber($key, $table)
     {
         $qualifiedColumnName = $table.'.'.$key;

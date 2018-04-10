@@ -156,6 +156,22 @@ class QG{
     }
 
     /**
+     * Get one row specific id, then return value of attribute specified
+     *
+     * @param string $attribute Attribute name
+     * @param mixed $id Id of row
+     * @param mixed $defaultIfNull Value returned if row null
+     * @return void
+     */
+    public function valueOf($attribute, $id, $defaultIfNull = null){
+        $row = $this->select($attribute)->query->find($id);
+        if(!$row || !$row->$attribute){
+            return $defaultIfNull;
+        }
+        return $row->$attribute;
+    }
+
+    /**
      * Change array of dot notation string to tree
      *
      * @param [type] $flatDotList

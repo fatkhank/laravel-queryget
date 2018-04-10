@@ -3,6 +3,8 @@ This doc use these eloquent models as sample. You can apply QG to any eloquent m
 
 ```php
 class Person{
+    protected $table = 'people';
+
     protected $fillable = [
         'id',
         'name',
@@ -64,18 +66,22 @@ You can fetch result using one of these:
 ```php
 //fetch one
 $result = $qg->query->first();
+//or
 $result = $qg->one();
 
 //fetch one or fail if not exists
 $result = $qg->query->firstOrFail();
+//or
 $result = $qg->fof();
 
 //find using id
 $result = $qg->query->find($id);
+//or
 $result = $qg->id($id);
 
 //find using id or fail if not exists
 $result = $qg->query->findOrFail($id);
+//or
 $result = $qg->iof($id);
 
 //fetch many
@@ -83,6 +89,11 @@ $result = $qg->query->get();
 
 //fetch, then wrap as json
 $result = $qg->get();
+
+//get only attribute value
+$result = $qg->select('name')->id($id)->name;
+//or
+$result = $qg->valueOf('name', $id);
 ```
 
 # Selection
@@ -548,7 +559,6 @@ $sortable = [
 
 public function sortByNameLength($query, $dir){
     $query->orderBy(\DB::raw('CHAR_LENGTH(name)'), $dir);
-    
 }
 ```
 
@@ -624,3 +634,82 @@ Input                       | Description
 ---                         | ---
 `'pagesize'` or `'size'` or `'count'`   | Count of rows per page
 `'pagenumber'` or `'page'`              | Page number
+
+
+# Join
+## Join defined relation
+If you want to join person's parent using traditional join, it would be like this:
+```php
+$qg->query->leftJoin('people as parent', 'parent.id', '=', 'people.parent_id')
+```
+If you have parent() relation defined, you can use join shortcut, by calling `leftJoin($joinKey)`
+```php
+$join = $qg->leftJoin('parent');
+```
+`$joinKey` key is the name of the relation you want to join that is defined in model.
+`$join` will contain alias of the join according to relation name suffixed with '_join' . In the sample, `$join` will be string with value 'parent_join'.
+
+Join also can be nested, like so:
+```php
+$grandParentJoin = $qg->leftJoin('parent.parent');
+```
+It will perform following query:
+```php
+$qg->query
+    ->leftJoin('people as parent_join', 'parent_join.id', '=', 'people.parent_id')
+    ->leftJoin('people as parent_join_parent_join', 'parent_join_parent_join.id', '=', 'parent_join.parent_id')
+```
+Notice that final join alias is concatenation of relations involved in join chain.
+
+> If `$qg->leftJoin` called more than once, only first leftJoin will perform real join operation on query. Following left join will only return alias from first operation.
+
+## Custom join
+If the relation you want to join is not defined, or you want complex join, you can use custom join. Define function with name `'join'+studly_case($joinKey)` in the model with signature `function ($query, $prefix, $alias)`. `$query` is query join operation will be applied to. `$prefix` is name of relation in query which join operation will be applied to. `$alias` is name of final alias of the custom join.
+### Sample
+```php
+//in the Person model
+
+public function joinChildrenCount($query, $prefix, $alias){
+    $childrenSql = Person::groupBy('parent_id')
+        ->select('parent_id', \DB::raw('COUNT(id) as children_count_val'))
+        ->toSql();
+
+    $query->leftJoin(\DB::raw('('.$childrenSql.') as '. $alias), $alias.'.order_id', '=', $prefix.'.id');
+}
+```
+Using it would be:
+```php
+$qg->leftJoin('children_count');
+```
+
+## Select using join
+```php
+//in model
+public $selectable = [
+    'parent_name',
+    'children_count',
+];
+
+public function selectParentName($tablePrefix, $aliasedKey, $qg){
+    $parentJoin = $qg->leftJoin('parent');//join shortcut to parent
+    return $parentJoin.".name as ".$aliasedKey);
+}
+
+public function selectChildrenCount($tablePrefix, $aliasedKey){
+    $parentJoin = $qg->leftJoin('parent');//join shortcut to parent
+    return $parentJoin.".children_count_val as ".$aliasedKey);
+}
+```
+## Filter using join
+```php
+
+public $filterable = [
+    'parent_name',
+];
+
+public function filterParentName($query, $value, $qg){
+    $parentJoin = $qg->leftJoin('parent');
+    $filter = \Hamba\QueryGet\Filters\StringFilter::createFilterString('name', $parentJoin);
+    $filter($query, $value);
+}
+```
