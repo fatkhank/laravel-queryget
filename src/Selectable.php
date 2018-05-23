@@ -27,22 +27,39 @@ trait Selectable
         if(method_exists($className, 'collectNormalizedQueryables')){
             $queryableCollection = $className::collectNormalizedQueryables('key');
         }
-        
+
         //get from selectable
         $selectables = $classObj->selectable;
 
         //merge all mapping
         $merged = $queryableCollection->merge($selectables);
-            
+
         //make mergeds uniform
         $normalized = $merged->mapWithKeys(function ($key, $alias) {
             if (is_numeric($alias)) {
-                return [$key=>$key];
+                //no alias used
+                $alias = $key;
+                $config = [
+                    'key' => $key
+                ];
             } else {
-                return [$alias=>$key];
+                //alias is used
+                if(is_array($key)){
+                    //use key as config
+                    $config = $key;
+                }else{
+                    $config = [];
+                }
+
+                //add alias as key if key config not specified
+                if(!array_key_exists('key', $config)){
+                    $config['key'] = $alias;
+                }
             }
+
+            return [$alias => $config];
         });
-        
+
         //filter selections by option
         if(array_key_exists('only', $opt)){
             $only = array_keys($opt['only']);

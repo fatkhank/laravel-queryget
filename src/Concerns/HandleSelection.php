@@ -14,6 +14,7 @@ use QG;
 trait HandleSelection
 {
     private $default_select;
+    private $selections = [];
 
     /**
      * Set default select if not specified in request
@@ -51,7 +52,7 @@ trait HandleSelection
     }
 
     /**
-     * Perform selection to query.
+     * Add selection to query (accumulated).
      *
      * @param mixed $selections array of selection alias; or selection aliases separated with comma;
      * @param array $opt accept:only,except
@@ -63,7 +64,7 @@ trait HandleSelection
         if (!$opt) {
             $opt = [];
         }
-        
+
         //filter selections by option
         if(array_key_exists('only', $opt)){
             $opt['only'] = QG::inflate($opt['only']);
@@ -101,21 +102,84 @@ trait HandleSelection
         }
         $opt['depth'] = $maxDepth;
 
-        $selectionTree = QG::inflate(array_unique($selections));
+        //merge with old selections
+        $this->selections = array_merge($this->selections, $selections);
 
-        $this->recursiveSelects($this->query, $selectionTree, $opt);
-        
+        $this->applySelections($opt);
+
         //for chaining
         return $this;
     }
 
-    public function recursiveSelects($query, $selectionTree, $opt){
-        if(array_get($opt, 'depth', 1) < 0){return;}
+    /**
+     * Unselect some accumulated selection
+     *
+     * @param mixed $patterns array of pattern to filter selections
+     * @return void
+     */
+    public function unselect($patterns = null){
+        $patterns = array_wrap($patterns);
+
+        //unselect
+        $opt = [
+            'unselect' => true,
+        ];
+        $matchSelections = array_filter($this->selections, function($selection) use ($patterns){
+            foreach ($patterns as $pattern) {
+                if(str_is($pattern, $selection)){
+                    return true;
+                }
+            }
+            return false;
+        });
+        $selectionTree = QG::inflate(array_unique($matchSelections));
+        $this->recursiveSelects($this->query, $selectionTree, $opt);
+
+        //remove selection that match patterns
+        $this->selections = array_diff($this->selections, $matchSelections);
+        $this->applySelections();
+
+        return $this;
+    }
+
+    /**
+     * Apply selections to query (automatically called when using select)
+     *
+     * @return void
+     */
+    public function applySelections($opt = []){
+        $selectionTree = QG::inflate(array_unique($this->selections));
+        $this->recursiveSelects($this->query, $selectionTree, $opt);
+    }
+
+    /**
+     * Perform selections recursively
+     *
+     * @param [type] $query
+     * @param [type] $selectionTree
+     * @param [type] $opt
+     * @return void
+     */
+    private function recursiveSelects($query, $selectionTree, $opt){
+        if(!array_key_exists('depth', $opt)){
+            $opt['depth'] = 1;
+        }
+        if($opt['depth'] < 0){ return; }
 
         //parse context
-        $modelName = get_class($query->getModel());
+        $modelName = array_get($opt, 'model');
+        if(!$modelName){
+            $modelName = get_class($query->getModel());
+        }
+
         $classObj = self::getInstance($modelName);
-        $tblName = $classObj->getTable();
+
+        if(array_get($opt, 'skip_table', false)){
+            $tblName = null;
+        }else{
+            $tblName = $classObj->getTable();
+        }
+
 
         //check if class is selectable
         if (!method_exists($modelName, 'getSelectMapping')) {
@@ -137,9 +201,11 @@ trait HandleSelection
         $selectedAttributes = [];
         $selectedRelations = [];
         foreach ($selectionTree as $alias => $children) {
-            $key = array_get($mapping, $alias);
+            $config = array_get($mapping, $alias);
             //skip if not selectable
-            if(!$key){continue;}
+            if(!$config){continue;}
+
+            $key = $config['key'];
 
             //check weather key is relation or not
             if(!method_exists($classObj, $key)){
@@ -153,16 +219,29 @@ trait HandleSelection
                     }
                 }else{
                     //custom select function not found, assume attribute
-                    $qualifiedKey = $tblName.'.'.$key;
+                    if($tblName){
+                        $qualifiedKey = $tblName.'.'.$key;
+                    }else{
+                        $qualifiedKey = $key;
+                    }
                     $selectedAttributes[] = $qualifiedKey.' as '.$alias;
                 }
             }else{//it is relation
                 if($children == null){
                     //if relation attribute not specified, use select all
-                    array_set($selectedRelations, $key, '*');
+                    $selectedRelationSelections = '*';
                 }else{
-                    array_set($selectedRelations, $key, $children);
+                    $selectedRelationSelections = $children;
                 }
+
+                //find model used as relation model (if specified)
+                $selectedRelationModel = array_get($config, 'model');
+
+                //add to selection
+                array_set($selectedRelations, $key, [
+                    'model' => $selectedRelationModel,
+                    'selection' => $selectedRelationSelections
+                ]);
             }
         }
 
@@ -171,22 +250,24 @@ trait HandleSelection
 
         //process relations
         $withFunctions = [];
-        foreach ($selectedRelations as $relationName => $relationSelections) {
+        foreach ($selectedRelations as $relationName => $relationConfig) {
+            $relationSelections = $relationConfig['selection'];
+
             //normalize select all
             if (($relationSelections == '*') || (array_key_exists('*', $relationSelections))) {
                 $relationSelections = ['*' => null];
             }
-            
+
             //get relation context
             $relation = $classObj->$relationName();
-            $relationClass = $relation->getRelated();
+            $relationClass = $relationConfig['model'];
 
             //include foreign keys
             $additionalRelationAttrs = [];
             if ($relation instanceof BelongsTo) {
                 //belongsTo need foreign
                 $selectedAttributes[] = $relation->getQualifiedForeignKey();
-                
+
                 if ($relation instanceof MorphTo) {
                     $selectedAttributes[] = $relation->getMorphType();
                 }else{
@@ -195,7 +276,7 @@ trait HandleSelection
             } elseif ($relation instanceof HasOneOrMany) {
                 $selectedAttributes[] = $relation->getQualifiedParentKeyName();
                 $additionalRelationAttrs[$relation->getForeignKeyName()] = null;
-                
+
                 if ($relation instanceof MorphOneOrMany) {
                     $additionalRelationAttrs[$relation->getMorphType()] = null;
                 }
@@ -205,7 +286,7 @@ trait HandleSelection
 
             //merge additional relation selection
             $relationSelections = array_merge($relationSelections, $additionalRelationAttrs);
-            
+
             //get option for relation
             $relationOpt = ['depth' => $opt['depth'] - 1];
             if(array_key_exists('only', $opt)){
@@ -217,19 +298,33 @@ trait HandleSelection
                 $mergedExcept = array_merge($originalExcept, $additionalRelationAttrs);
                 $relationOpt['except'] = $mergedExcept;
             }
-            
+
+            if($relation instanceof MorphTo){
+                $relationOpt['model'] = $relationClass;
+                $relationOpt['skip_table'] = true;
+            }
+
             //generate function for lazy load query
-            $withFunctions[$relationName] = function($withQuery) use ($qg, $relationClass, $relationSelections, $relationOpt){
+            $withFunctions[$relationName] = function($withQuery) use ($qg, $relationSelections, $relationOpt){
                 $qg->recursiveSelects($withQuery, $relationSelections, $relationOpt);
             };
         }
 
+        $unselect = array_get($opt, 'unselect', false);
+
         //apply selection
-        $query->select($selectedAttributes);
+        if(!$unselect){
+            $query->select($selectedAttributes);
+        }
 
         //apply selection
         if(!empty($withFunctions)){
-            $query->with($withFunctions);
+            if($unselect){
+                $withouts = array_keys($withFunctions);
+                $query->without($withouts);
+            }else{
+                $query->with($withFunctions);
+            }
         }
     }
 }

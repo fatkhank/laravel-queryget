@@ -9,6 +9,16 @@ trait Queryable
     use Sortable;
 
     /**
+     * Create qg instance
+     *
+     * @return void
+     */
+    public static function qg(){
+        $model = new static;
+        return new QG($model);
+    }
+
+    /**
      * Get normalized queryables
      */
     public static function collectNormalizedQueryables($selectedValue = null){
@@ -20,12 +30,12 @@ trait Queryable
             return collect();
         }
 
-        // queryable format = 
+        // queryable format =
         // [
         //      alias1 => 'type1:key1',
         //      alias2 => 'type2:key2'
         // ]
-        // 
+        //
         $queryables = $classObj->queryable;
 
         //begin normalize each spec
@@ -36,7 +46,7 @@ trait Queryable
                 $alias = $qVal;
                 $qVal = 'null:'.$alias;//null is default type, assume key is same as alias
             }
-            
+
             //parse value
             if($selectedValue == 'plain'){
                 $value = $qVal;

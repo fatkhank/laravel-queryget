@@ -3,6 +3,9 @@ This doc use these eloquent models as sample. You can apply QG to any eloquent m
 
 ```php
 class Person{
+    //required trait
+    use \Hamba\QueryGet\Queryable;
+
     protected $table = 'people';
 
     protected $fillable = [
@@ -50,6 +53,7 @@ First, create instance of \Hamba\QueryGet\QG:
 ```php
 $qg = qg(Person::class);//create using helper function
 $qg = new QG(Person::class);//create using constructor
+$qg = Person::qg();//create from model
 ```
 Beside using model, you can also passing query created from eloquent model as parameter:
 ```php
@@ -100,7 +104,7 @@ $result = $qg->valueOf('name', $id);
 Add `\Hamba\QueryGet\Selectable` trait and `$selectable` attribute to model. Then define all attribute or relation that can be selected.
 ```php
 //dont forget the trait
-use \Hamba\QueryGet\Selectable;
+use \Hamba\QueryGet\Queryable;
 
 /**
  * Attributes or relations that can be selected
@@ -179,6 +183,54 @@ $qg->select('name,parent.parent.*')->id(3);
 // ]
 ```
 > When selecting relations, owned and foreign keys involved will be automatically included in selection. They must be registered in `$selectable`. If you forget to register them, the relation may not be fetched.
+
+You can call `select()` multiple times, and all selections will be applied. To undo selection use `unselect($patterns)`.
+```php
+$qg->select('name')->select('id')->one();
+// result:
+// [
+//      'id' => 1,
+//      'name' => 'Ahmad',
+// ]
+
+// Without unselect():
+$sample = $qg
+    ->select('name')
+    ->select('parent.parent.name')
+    ->select('parent.parent.is_active')
+    ->select('parent.name');
+$sample->id(3);
+// result:
+// [
+//      'name' => 'Lisa',
+//      'parent_id' => 2,
+//      'parent' => [
+//          'id' => 2,
+//          'name' => 'Yusuf',
+//          'parent_id' => 1,
+//          'parent' => [
+//              'id' => 2,
+//              'name' => 'Ahmad',
+//              'is_active' => true,
+//          ]
+//      ]
+// ]
+
+// With unselect():
+$sample->unselect('*name')->id(3);
+// result:
+// [
+//      'parent_id' => 2,
+//      'parent' => [
+//          'id' => 2,
+//          'parent_id' => 1,
+//          'parent' => [
+//              'id' => 2,
+//              'is_active' => true,
+//          ]
+//      ]
+// ]
+```
 
 ## Aliasing Selectable
 In `$selectable`, you can specify alias for attribute:
@@ -270,14 +322,14 @@ $qg->select('big_name')->one(2);
     'big_name' => 'YUSUF'
 ]
 ```
-> When selecting column, remember to prepend with `$tablePrefix` to prevent column name conflict 
+> When selecting column, remember to prepend with `$tablePrefix` to prevent column name conflict
 
 # Filtering
 Add `\Hamba\QueryGet\Filterable` trait and `$filterable` attribute to model. Then define all attribute or relation that can be filtered.
 
 ```php
 //dont forget the trait
-use \Hamba\QueryGet\Filterable;
+use \Hamba\QueryGet\Queryable;
 
 /**
  * Attributes or relations that can be filtered
@@ -311,7 +363,7 @@ $qg->filter('name', 'Yus%')->select('id,name')->one();
 // format: $qg->filter($filterKeyValuePairs, $opt);
 // filter whose name is lisa and ordered_id greater than 2
 $qg->filter([
-    'name'=>'Lisa', 
+    'name'=>'Lisa',
     'ordered_id' => 'gt:2'
 ])->select('id,name')->one();
 // result:
@@ -419,7 +471,7 @@ Filter Value    | Description           | Sample
 
 ### 4. date
 Filter Value    | Description
----             | ---                   
+---             | ---
 `{VALUE}`         | Filter where value equals with `{VALUE}`
 
 ### 5. date_min
@@ -451,7 +503,7 @@ public $filterable = [
 
 /**
  * Create filter length
- * 
+ *
  * @param string $key attribute name passed as parameter of length type
  */
 public function createFilterLength($key, $table){
@@ -472,7 +524,7 @@ public $filterable = [
 
 /**
  * Filter anonym
- * 
+ *
  * @param mixed $query
  * @param boolean value
  */
@@ -492,6 +544,9 @@ $qg->filter('is_anonym', false)
 # Sorting
 Add $sortable attribute to model. Then define all attribute or relation that can be sorted.
 ```php
+//dont forget the trait
+use \Hamba\QueryGet\Queryable;
+
 /**
  * Attributes or relations that can be sorted
  *
@@ -591,7 +646,7 @@ When calling `$qg->get()` the result is wrapped using wrapper. Default wrapper w
 `$qg->get(false)` will not wrap result, instead returning only list of paginated data as array.
 
 ## Custom wrapper
-You can make custom wrapper by calling `QG::addWrapper($wrapperName, $wrapperFunc)` in your AppServiceProvider. The `$wrapperFunc` is function with signature `function($data, $meta, $wrapperParam)`. Data is array of data from `$qg->query->get()` after being paginated. `$meta` is array with following content: 
+You can make custom wrapper by calling `QG::addWrapper($wrapperName, $wrapperFunc)` in your AppServiceProvider. The `$wrapperFunc` is function with signature `function($data, $meta, $wrapperParam)`. Data is array of data from `$qg->query->get()` after being paginated. `$meta` is array with following content:
 Key         | Value
 ---         | ---
 `'total'`   | total result without paging

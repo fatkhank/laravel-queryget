@@ -63,7 +63,7 @@ class QG{
      * @return mixed
      */
     public function get($wrap = 'default', $wrapperParam = null)
-    {        
+    {
         //total results count
         $total = $this->query->count();
 
@@ -186,7 +186,7 @@ class QG{
         return $tree;
     }
 
-    
+
     public static function normalizeList($arrayOrStringCSV, $delimiter=','){
         if(is_string($arrayOrStringCSV)){
             //if props is concatenated string, parse it
